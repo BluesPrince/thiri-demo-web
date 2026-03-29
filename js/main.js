@@ -1,0 +1,1021 @@
+/**
+ * main.js — App Initialization & UI Wiring
+ * ==========================================
+ * Connects all Evocal modules together:
+ *   Mic → AudioContext → PitchDetector → HarmonyEngine → SynthEngine → Speakers
+ *
+ * Audio routing (feedback-free):
+ *   micStream → micSource → [analyserNode for pitch] (no audio output from analyser)
+ *                         → [dryGain in SynthEngine] → masterGain → speakers
+ *
+ * Copyright 2026 Blues Prince Media. PATENT PENDING.
+ */
+
+import { PitchDetector } from './pitch.js';
+import { getHarmonyNotes, smoothVoiceTransition, getLeadContext } from './harmony.js';
+import { SynthEngine } from './synth.js';
+import {
+  NOTE_NAMES,
+  MODE_DISPLAY_NAMES,
+} from './scales.js';
+import {
+  signIn, signUp, signOut, isAuthenticated, getUser,
+  onAuthStateChange,
+} from './auth.js';
+import {
+  startSession, endSession, pushEvent, startEventBuffer, stopEventBuffer,
+} from './api.js';
+import { initPatchEditor, openPatchEditor } from './patches.js';
+import { initChartUI } from './chart-ui.js';
+import { chordToScale } from './chord.js';
+import { DrumLoopEngine } from './drums.js';
+import { MIDIController } from './midi.js';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const state = {
+  running: false,
+  audioCtx: null,
+  synth: null,
+  detector: null,
+  currentPitch: null,
+  prevHarmonyNotes: [],
+
+  // User controls
+  key: 'C',
+  mode: 'major',
+  numVoices: 2,
+  voicingType: 'close',
+  direction: 'above',
+  mix: 0.6,
+  masterVol: 0.8,
+  fmMode: false,
+  synthEnabled: true,
+
+  humanize: 0.35,
+  voiceType: 'formant',  // 'formant' | 'oscillator' | 'fm'
+  vowel: 0.0,            // formant vowel position (0–1)
+  breath: 0.15,          // formant breath amount (0–1)
+
+  // Drum loop
+  drums: null,
+  drumsVol: 0.7,
+
+  // MIDI
+  midi: null,
+
+  // Pitch detection sensitivity
+  gateThreshold: 0.01,
+  minConfidence: 0.80,
+  smoothingFactor: 0.70,
+
+  // Jazz voicing options
+  dropType: 'drop2',            // 'close' | 'drop2' | 'drop3' | 'drop24'
+  fifthVoiceMode: 'double8vb',  // 'double8vb' | 'tension9' | 'tension11' | 'tension13'
+  tritoneSub: false,            // tritone substitution toggle
+
+  // Chart-driven harmony
+  chartSections: null,
+  chartQueue: null,
+  chartActive: false,       // when true, chord chart overrides key/mode
+  currentChord: null,       // current chord from chart (for display)
+
+  // Session tracking
+  sessionId: null,
+  sessionStart: null,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DOM ELEMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const $ = id => document.getElementById(id);
+
+const ui = {
+  startBtn:       $('startBtn'),
+  noteDisplay:    $('noteDisplay'),
+  freqDisplay:    $('freqDisplay'),
+  centsDisplay:   $('centsDisplay'),
+  pitchMeter:     $('pitchMeter'),
+  levelMeter:     $('levelMeter'),
+  levelCanvas:    $('levelCanvas'),
+  keySelect:      $('keySelect'),
+  modeSelect:     $('modeSelect'),
+  voicesGroup:    $('voicesGroup'),
+  voicingGroup:   $('voicingGroup'),
+  directionGroup: $('directionGroup'),
+  mixSlider:      $('mixSlider'),
+  masterSlider:   $('masterSlider'),
+  voiceCards:     $('voiceCards'),
+  fmToggle:       $('fmToggle'),
+  statusBar:      $('statusBar'),
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// POPULATE SELECTORS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function populateSelectors() {
+  // Key selector
+  NOTE_NAMES.forEach(note => {
+    const opt = document.createElement('option');
+    opt.value = note;
+    opt.textContent = note;
+    ui.keySelect.appendChild(opt);
+  });
+
+  // Mode selector — all WoodShed modes
+  Object.entries(MODE_DISPLAY_NAMES).forEach(([key, label]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = label;
+    ui.modeSelect.appendChild(opt);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// START / STOP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function start() {
+  try {
+    setStatus('Requesting mic permission…');
+
+    // Create AudioContext
+    state.audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+      latencyHint: 'interactive',
+      sampleRate: 44100,
+    });
+
+    // Get mic stream
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        latency: 0,
+      },
+    });
+
+    // Build the analyser node for pitch detection (no audio output)
+    const analyser = state.audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0;
+
+    // Mic routing:
+    //   micSource → analyser → [float data only, not connected to speakers]
+    //   micSource → synth.dryGain → masterGain → speakers
+    const micSource = state.audioCtx.createMediaStreamSource(stream);
+    micSource.connect(analyser); // pitch detection only — NOT connected to output
+
+    // Init synth engine (formant voice by default — THIRI.ai vocal sound)
+    state.synth = new SynthEngine(state.audioCtx, 4);
+    state.synth.connectMic(stream);
+    state.synth.setMasterVolume(state.masterVol);
+    state.synth.setMix(state.mix);
+    state.synth.setHumanize(state.humanize);
+    state.synth.setVoiceType(state.voiceType);
+    state.synth.setVowel(state.vowel);
+    state.synth.setBreath(state.breath);
+
+    // Init drum loop engine
+    state.drums = new DrumLoopEngine(state.audioCtx);
+    state.drums.connect(state.synth.masterGain);
+    state.drums.setVolume(state.drumsVol);
+
+    // Init pitch detector (uses current sensitivity state)
+    state.detector = new PitchDetector(analyser, state.audioCtx.sampleRate, {
+      threshold: 0.15,
+      minConfidence: state.minConfidence,
+      rmsThreshold: state.gateThreshold,
+      smoothingFactor: state.smoothingFactor,
+    });
+
+    state.detector.start(onPitchDetected);
+    state.running = true;
+    state.sessionStart = Date.now();
+
+    // Start a server session if authenticated
+    if (isAuthenticated()) {
+      try {
+        const session = await startSession({
+          key: state.key,
+          mode: state.mode,
+          num_voices: state.numVoices,
+          voicing: state.voicingType,
+        });
+        state.sessionId = session.id;
+        startEventBuffer(session.id);
+      } catch (err) {
+        console.warn('[THIRI] Session logging unavailable:', err.message);
+      }
+    }
+
+    ui.startBtn.textContent = 'STOP';
+    ui.startBtn.classList.add('active');
+    setStatus('Listening — sing into the mic');
+    drawLevelLoop();
+
+  } catch (err) {
+    console.error('Start failed:', err);
+    setStatus(`Error: ${err.message}`);
+  }
+}
+
+async function stop() {
+  // End server session if active
+  if (state.sessionId && isAuthenticated()) {
+    const durationS = Math.round((Date.now() - state.sessionStart) / 1000);
+    try {
+      await stopEventBuffer();
+      await endSession(state.sessionId, durationS);
+    } catch (err) {
+      console.warn('[THIRI] Session end failed:', err.message);
+    }
+    state.sessionId = null;
+    state.sessionStart = null;
+  }
+
+  if (state.detector) {
+    state.detector.stop();
+    state.detector = null;
+  }
+  if (state.drums) {
+    state.drums.stop();
+    state.drums.destroy();
+    state.drums = null;
+    // Reset drum slot UI
+    document.querySelectorAll('.drum-slot').forEach(s => s.classList.remove('active'));
+  }
+  if (state.synth) {
+    state.synth.muteAll();
+    state.synth.destroy();
+    state.synth = null;
+  }
+  if (state.audioCtx) {
+    state.audioCtx.close();
+    state.audioCtx = null;
+  }
+
+  state.running = false;
+  state.currentPitch = null;
+  state.prevHarmonyNotes = [];
+
+  ui.startBtn.textContent = 'START';
+  ui.startBtn.classList.remove('active');
+  ui.noteDisplay.textContent = '–';
+  ui.freqDisplay.textContent = '– Hz';
+  ui.noteDisplay.classList.remove('detected');
+  setStatus('Ready');
+  resetVoiceCards();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PITCH → HARMONY LOOP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function onPitchDetected(pitchInfo) {
+  state.currentPitch = pitchInfo;
+
+  if (!pitchInfo) {
+    // Silence — mute all
+    if (state.synth) state.synth.muteAll();
+    ui.noteDisplay.textContent = '–';
+    ui.noteDisplay.classList.remove('detected');
+    ui.freqDisplay.textContent = '– Hz';
+    ui.centsDisplay.textContent = '';
+    resetVoiceCards();
+    return;
+  }
+
+  // Update pitch display
+  ui.noteDisplay.textContent = pitchInfo.noteName + pitchInfo.octave;
+  ui.noteDisplay.classList.add('detected');
+  ui.freqDisplay.textContent = pitchInfo.frequency.toFixed(1) + ' Hz';
+  const centsLabel = pitchInfo.centsOff > 0
+    ? `+${pitchInfo.centsOff}¢`
+    : `${pitchInfo.centsOff}¢`;
+  ui.centsDisplay.textContent = centsLabel;
+
+  // Pitch accuracy meter: cents deviation drives the fill bar left/width
+  const cents = Math.max(-50, Math.min(50, pitchInfo.centsOff ?? 0));
+  const absW = Math.abs(cents); // 0–50 → percentage of half-bar
+  if (cents >= 0) {
+    ui.pitchMeter.style.left = '50%';
+    ui.pitchMeter.style.width = `${absW}%`;
+  } else {
+    ui.pitchMeter.style.left = `${50 - absW}%`;
+    ui.pitchMeter.style.width = `${absW}%`;
+  }
+
+  // Determine key/mode — chart overrides manual selection when active
+  let harmonyKey = state.key;
+  let harmonyMode = state.mode;
+
+  if (state.chartActive && state.currentChord) {
+    const scale = chordToScale(state.currentChord);
+    if (scale) {
+      harmonyKey = scale.key;
+      harmonyMode = scale.mode;
+    }
+  }
+
+  // Update diagnostic display
+  updateDiagnostics(pitchInfo, harmonyKey, harmonyMode);
+
+  // Build options for jazz voicing modes
+  const harmonyOptions = {
+    parallelStep: 2,
+    prevVoices: state.prevHarmonyNotes,
+    prevTargets: state.prevHarmonyNotes,
+    dropType: state.dropType || 'drop2',
+    fifthVoiceMode: state.fifthVoiceMode || 'double8vb',
+  };
+
+  // Pass chord context when chart is driving harmony
+  if (state.chartActive && state.currentChord) {
+    harmonyOptions.chordRoot = state.currentChord.root;
+    harmonyOptions.chordQuality = state.currentChord.quality || 'maj';
+  }
+
+  // Auto-select jazz voicing mode based on voice count when using jazz mode
+  let voicingType = state.voicingType;
+  if (voicingType === 'jazz') {
+    // Auto-dispatch based on numVoices
+    if (state.numVoices <= 1) voicingType = 'close'; // 1 voice = no jazz voicing needed
+    else if (state.numVoices === 2) voicingType = 'jazz2';
+    else if (state.numVoices === 3) voicingType = 'jazz3';
+    else if (state.numVoices === 4) voicingType = 'jazz4';
+    else voicingType = 'jazz5';
+  }
+
+  // Compute harmony notes
+  const harmonyNotes = getHarmonyNotes(
+    pitchInfo.midi,
+    harmonyKey,
+    harmonyMode,
+    voicingType,
+    state.numVoices,
+    state.direction,
+    harmonyOptions,
+  );
+
+  // Smooth voice leading across frames
+  const smoothed = smoothVoiceTransition(harmonyNotes, state.prevHarmonyNotes);
+  state.prevHarmonyNotes = smoothed;
+
+  // Send to synth (only if harmony is enabled)
+  if (state.synth && state.synthEnabled) {
+    state.synth.update(smoothed);
+  } else if (state.synth && !state.synthEnabled) {
+    state.synth.muteAll();
+  }
+
+  // Log harmony event (buffered, not per-frame — pushEvent handles throttling)
+  if (state.sessionId) {
+    pushEvent(pitchInfo.midi, smoothed, smoothed);
+  }
+
+  // Update voice cards
+  updateVoiceCards(smoothed);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOICE CARDS UI
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function buildVoiceCards() {
+  ui.voiceCards.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const card = document.createElement('div');
+    card.className = 'voice-card';
+    card.id = `voiceCard${i}`;
+    card.innerHTML = `
+      <div class="voice-header">
+        <div class="voice-indicator" id="voiceIndicator${i}"></div>
+        <span class="voice-label">Voice ${i + 1}</span>
+        <span class="voice-note" id="voiceNote${i}">–</span>
+      </div>
+      <div class="voice-controls">
+        <div class="control-row">
+          <label>Wave</label>
+          <select class="voice-wave" data-voice="${i}" id="voiceWave${i}">
+            <option value="sine">Sine</option>
+            <option value="triangle">Triangle</option>
+            <option value="sawtooth">Sawtooth</option>
+            <option value="square">Square</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label>Detune</label>
+          <input type="range" class="voice-detune" data-voice="${i}"
+            min="-30" max="30" value="0" step="1" id="voiceDetune${i}">
+          <span class="detune-val" id="voiceDetuneVal${i}">0¢</span>
+        </div>
+        <div class="control-row">
+          <label>Vol</label>
+          <input type="range" class="voice-vol" data-voice="${i}"
+            min="0" max="100" value="70" step="1" id="voiceVol${i}">
+        </div>
+      </div>
+    `;
+    ui.voiceCards.appendChild(card);
+  }
+
+  // Wire voice card controls
+  document.querySelectorAll('.voice-wave').forEach(sel => {
+    sel.addEventListener('change', e => {
+      const idx = parseInt(e.target.dataset.voice);
+      if (state.synth) state.synth.setVoiceWaveform(idx, e.target.value);
+    });
+  });
+
+  document.querySelectorAll('.voice-detune').forEach(input => {
+    input.addEventListener('input', e => {
+      const idx = parseInt(e.target.dataset.voice);
+      const val = parseInt(e.target.value);
+      $(`voiceDetuneVal${idx}`).textContent = (val >= 0 ? '+' : '') + val + '¢';
+      if (state.synth) state.synth.setVoiceDetune(idx, val);
+    });
+  });
+
+  document.querySelectorAll('.voice-vol').forEach(input => {
+    input.addEventListener('input', e => {
+      const idx = parseInt(e.target.dataset.voice);
+      if (state.synth) state.synth.setVoiceVolume(idx, parseInt(e.target.value) / 100);
+    });
+  });
+}
+
+function updateVoiceCards(harmonyNotes) {
+  for (let i = 0; i < 4; i++) {
+    const noteEl = $(`voiceNote${i}`);
+    const indicatorEl = $(`voiceIndicator${i}`);
+    const card = $(`voiceCard${i}`);
+
+    if (noteEl === null) continue;
+
+    if (i < harmonyNotes.length && i < state.numVoices) {
+      const midi = harmonyNotes[i];
+      const noteIdx = ((midi % 12) + 12) % 12;
+      const octave = Math.floor(midi / 12) - 1;
+      noteEl.textContent = NOTE_NAMES[noteIdx] + octave;
+      indicatorEl.classList.add('active');
+      card.classList.add('active');
+    } else {
+      noteEl.textContent = '–';
+      indicatorEl.classList.remove('active');
+      card.classList.remove('active');
+    }
+  }
+}
+
+function resetVoiceCards() {
+  for (let i = 0; i < 4; i++) {
+    const noteEl = $(`voiceNote${i}`);
+    if (noteEl) noteEl.textContent = '–';
+    $(`voiceIndicator${i}`)?.classList.remove('active');
+    $(`voiceCard${i}`)?.classList.remove('active');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LEVEL METER (Canvas)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function drawLevelLoop() {
+  if (!state.running) return;
+
+  const canvas = ui.levelCanvas;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const pitch = state.currentPitch;
+  const rms = pitch?.rms ?? 0;
+  const level = Math.min(1, rms * 10); // scale up for display
+
+  // Background track
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Level bar
+  const barW = level * W;
+  const gradient = ctx.createLinearGradient(0, 0, W, 0);
+  gradient.addColorStop(0, '#d4a017');
+  gradient.addColorStop(0.7, '#f5c542');
+  gradient.addColorStop(1, '#ff6b35');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 2, barW, H - 4);
+
+  requestAnimationFrame(drawLevelLoop);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONTROL WIRING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function wireControls() {
+  // Start/Stop
+  ui.startBtn.addEventListener('click', () => {
+    if (state.running) stop(); else start();
+  });
+
+  // Key
+  ui.keySelect.addEventListener('change', e => {
+    state.key = e.target.value;
+    state.prevHarmonyNotes = [];
+  });
+
+  // Mode
+  ui.modeSelect.addEventListener('change', e => {
+    state.mode = e.target.value;
+    state.prevHarmonyNotes = [];
+  });
+
+  // Voice count buttons
+  ui.voicesGroup.querySelectorAll('[data-voices]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      state.numVoices = parseInt(e.currentTarget.dataset.voices);
+      ui.voicesGroup.querySelectorAll('[data-voices]').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      if (state.synth) state.synth.setVoiceCount(state.numVoices);
+    });
+  });
+
+  // Voicing type buttons
+  ui.voicingGroup.querySelectorAll('[data-voicing]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      state.voicingType = e.currentTarget.dataset.voicing;
+      ui.voicingGroup.querySelectorAll('[data-voicing]').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      state.prevHarmonyNotes = [];
+    });
+  });
+
+  // Direction buttons
+  ui.directionGroup.querySelectorAll('[data-direction]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      state.direction = e.currentTarget.dataset.direction;
+      ui.directionGroup.querySelectorAll('[data-direction]').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      state.prevHarmonyNotes = [];
+    });
+  });
+
+  // Drop voicing type buttons
+  const dropGroup = $('dropGroup');
+  if (dropGroup) {
+    dropGroup.querySelectorAll('[data-drop]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        state.dropType = e.currentTarget.dataset.drop;
+        dropGroup.querySelectorAll('[data-drop]').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        state.prevHarmonyNotes = [];
+      });
+    });
+  }
+
+  // 5th voice mode buttons
+  const fifthGroup = $('fifthVoiceGroup');
+  if (fifthGroup) {
+    fifthGroup.querySelectorAll('[data-fifth]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        state.fifthVoiceMode = e.currentTarget.dataset.fifth;
+        fifthGroup.querySelectorAll('[data-fifth]').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+      });
+    });
+  }
+
+  // Tritone substitution toggle
+  const tritoneToggle = $('tritoneToggle');
+  if (tritoneToggle) {
+    tritoneToggle.addEventListener('change', e => {
+      state.tritoneSub = e.target.checked;
+    });
+  }
+
+  // Mix slider
+  ui.mixSlider.addEventListener('input', e => {
+    state.mix = parseInt(e.target.value) / 100;
+    if (state.synth) state.synth.setMix(state.mix);
+    $('mixVal').textContent = `${e.target.value}%`;
+  });
+
+  // Master volume
+  ui.masterSlider.addEventListener('input', e => {
+    state.masterVol = parseInt(e.target.value) / 100;
+    if (state.synth) state.synth.setMasterVolume(state.masterVol);
+    $('masterVal').textContent = `${e.target.value}%`;
+  });
+
+  // FM Mode toggle
+  if (ui.fmToggle) {
+    ui.fmToggle.addEventListener('change', e => {
+      state.fmMode = e.target.checked;
+      if (state.synth) state.synth.setFMMode(state.fmMode);
+    });
+  }
+
+  // Synth (harmony) enable toggle
+  const synthToggle = $('synthToggle');
+  if (synthToggle) {
+    synthToggle.addEventListener('change', e => {
+      state.synthEnabled = e.target.checked;
+      if (!state.synthEnabled && state.synth) state.synth.muteAll();
+    });
+  }
+
+  // Humanize slider
+  const humanizeSlider = $('humanizeSlider');
+  if (humanizeSlider) {
+    humanizeSlider.addEventListener('input', e => {
+      state.humanize = parseInt(e.target.value) / 100;
+      $('humanizeVal').textContent = state.humanize.toFixed(2);
+      if (state.synth) state.synth.setHumanize(state.humanize);
+    });
+  }
+
+  // Chart-active toggle
+  const chartActiveToggle = $('chartActiveToggle');
+  if (chartActiveToggle) {
+    chartActiveToggle.addEventListener('change', e => {
+      state.chartActive = e.target.checked;
+      if (!state.chartActive) {
+        state.currentChord = null;
+      }
+    });
+  }
+
+  // Sensitivity: noise gate
+  const gateSlider = $('gateSlider');
+  if (gateSlider) {
+    gateSlider.addEventListener('input', e => {
+      state.gateThreshold = parseInt(e.target.value) / 1000;
+      $('gateVal').textContent = state.gateThreshold.toFixed(3);
+      if (state.detector) state.detector._rmsThreshold = state.gateThreshold;
+    });
+  }
+
+  // Sensitivity: confidence
+  const confidenceSlider = $('confidenceSlider');
+  if (confidenceSlider) {
+    confidenceSlider.addEventListener('input', e => {
+      state.minConfidence = parseInt(e.target.value) / 100;
+      $('confidenceVal').textContent = state.minConfidence.toFixed(2);
+      if (state.detector) state.detector.minConfidence = state.minConfidence;
+    });
+  }
+
+  // Sensitivity: smoothing
+  const smoothingSlider = $('smoothingSlider');
+  if (smoothingSlider) {
+    smoothingSlider.addEventListener('input', e => {
+      state.smoothingFactor = parseInt(e.target.value) / 100;
+      $('smoothingVal').textContent = state.smoothingFactor.toFixed(2);
+      if (state.detector) state.detector.smoothingFactor = state.smoothingFactor;
+    });
+  }
+
+  // ── Voice Type switcher ──
+  const voiceTypeGroup = $('voiceTypeGroup');
+  if (voiceTypeGroup) {
+    voiceTypeGroup.querySelectorAll('[data-voice-type]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        state.voiceType = e.currentTarget.dataset.voiceType;
+        voiceTypeGroup.querySelectorAll('[data-voice-type]').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        if (state.synth) state.synth.setVoiceType(state.voiceType);
+
+        // Show/hide formant-only controls
+        const isFormant = state.voiceType === 'formant';
+        if ($('vowelRow')) $('vowelRow').style.display = isFormant ? '' : 'none';
+        if ($('breathRow')) $('breathRow').style.display = isFormant ? '' : 'none';
+      });
+    });
+  }
+
+  // ── Vowel slider (formant voices) ──
+  const vowelSlider = $('vowelSlider');
+  if (vowelSlider) {
+    vowelSlider.addEventListener('input', e => {
+      state.vowel = parseInt(e.target.value) / 100;
+      const vowelNames = ['ah', 'ee', 'oh', 'oo'];
+      const idx = Math.min(3, Math.floor(state.vowel * 3.99));
+      $('vowelVal').textContent = vowelNames[idx];
+      if (state.synth) state.synth.setVowel(state.vowel);
+    });
+  }
+
+  // ── Breath slider (formant voices) ──
+  const breathSlider = $('breathSlider');
+  if (breathSlider) {
+    breathSlider.addEventListener('input', e => {
+      state.breath = parseInt(e.target.value) / 100;
+      $('breathVal').textContent = `${e.target.value}%`;
+      if (state.synth) state.synth.setBreath(state.breath);
+    });
+  }
+
+  // ── Drum Loop Slots ──
+  document.querySelectorAll('[data-drum-slot]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = parseInt(e.currentTarget.dataset.drumSlot);
+      if (state.drums) {
+        state.drums.trigger(idx);
+        // Update UI
+        document.querySelectorAll('.drum-slot').forEach(s => s.classList.remove('active'));
+        if (state.drums.playing) {
+          e.currentTarget.classList.add('active');
+          e.currentTarget.querySelector('.drum-slot-icon').textContent = '■';
+        }
+        // Reset icons on all
+        document.querySelectorAll('.drum-slot').forEach(s => {
+          if (!s.classList.contains('active')) {
+            s.querySelector('.drum-slot-icon').textContent = '▶';
+          }
+        });
+      }
+    });
+  });
+
+  // Drum volume
+  const drumsVolSlider = $('drumsVolSlider');
+  if (drumsVolSlider) {
+    drumsVolSlider.addEventListener('input', e => {
+      state.drumsVol = parseInt(e.target.value) / 100;
+      if (state.drums) state.drums.setVolume(state.drumsVol);
+    });
+  }
+}
+
+function setStatus(msg) {
+  if (ui.statusBar) ui.statusBar.textContent = msg;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTH UI
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let authIsSignUp = false;
+
+function wireAuthUI() {
+  const authBtn = $('authBtn');
+  const authModal = $('authModal');
+  const authForm = $('authForm');
+  const authToggleBtn = $('authToggleBtn');
+  const authModalClose = $('authModalClose');
+  const patchesBtn = $('patchesBtn');
+
+  // Open auth modal (or sign out if already signed in)
+  authBtn.addEventListener('click', () => {
+    if (isAuthenticated()) {
+      signOut();
+    } else {
+      authIsSignUp = false;
+      updateAuthModalMode();
+      authModal.classList.remove('hidden');
+    }
+  });
+
+  // Close modal
+  authModalClose.addEventListener('click', () => authModal.classList.add('hidden'));
+  authModal.addEventListener('click', e => {
+    if (e.target === authModal) authModal.classList.add('hidden');
+  });
+
+  // Toggle sign-in / sign-up
+  authToggleBtn.addEventListener('click', () => {
+    authIsSignUp = !authIsSignUp;
+    updateAuthModalMode();
+  });
+
+  // Submit auth form
+  authForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $('authEmail').value.trim();
+    const password = $('authPassword').value;
+    const errorEl = $('authError');
+
+    errorEl.classList.add('hidden');
+    $('authSubmit').textContent = authIsSignUp ? 'SIGNING UP...' : 'SIGNING IN...';
+
+    try {
+      if (authIsSignUp) {
+        await signUp(email, password);
+      } else {
+        await signIn(email, password);
+      }
+      authModal.classList.add('hidden');
+      authForm.reset();
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.classList.remove('hidden');
+    } finally {
+      $('authSubmit').textContent = authIsSignUp ? 'SIGN UP' : 'SIGN IN';
+    }
+  });
+
+  // Patches button
+  patchesBtn.addEventListener('click', () => openPatchEditor());
+
+  // React to auth state changes
+  onAuthStateChange(session => {
+    const user = session?.user;
+    if (user) {
+      authBtn.textContent = 'SIGN OUT';
+      authBtn.classList.add('signed-in');
+      // Show patches/sessions buttons
+      patchesBtn.style.visibility = 'visible';
+      $('sessionsBtn').style.visibility = 'visible';
+    } else {
+      authBtn.textContent = 'SIGN IN';
+      authBtn.classList.remove('signed-in');
+      patchesBtn.style.visibility = 'hidden';
+      $('sessionsBtn').style.visibility = 'hidden';
+    }
+  });
+}
+
+function updateAuthModalMode() {
+  $('authModalTitle').textContent = authIsSignUp ? 'SIGN UP' : 'SIGN IN';
+  $('authSubmit').textContent = authIsSignUp ? 'SIGN UP' : 'SIGN IN';
+  $('authToggleText').textContent = authIsSignUp ? 'Have an account?' : 'No account?';
+  $('authToggleBtn').textContent = authIsSignUp ? 'Sign in' : 'Sign up';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DIAGNOSTICS OVERLAY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function updateDiagnostics(pitchInfo, harmonyKey, harmonyMode) {
+  const diagEl = $('diagnostics');
+  if (!diagEl) return;
+
+  const confidence = pitchInfo.confidence?.toFixed(2) ?? '–';
+  const rms = pitchInfo.rms?.toFixed(4) ?? '–';
+  const drift = pitchInfo.driftCents?.toFixed(1) ?? '0';
+  const chordLabel = state.currentChord?.symbol ?? '–';
+  const gateStatus = (pitchInfo.rms ?? 0) < state.gateThreshold ? 'GATED' : 'OPEN';
+
+  diagEl.innerHTML =
+    `<span class="diag-item">CONF <b>${confidence}</b></span>` +
+    `<span class="diag-item">RMS <b>${rms}</b></span>` +
+    `<span class="diag-item">GATE <b class="${gateStatus === 'GATED' ? 'diag-warn' : ''}">${gateStatus}</b></span>` +
+    `<span class="diag-item">DRIFT <b>${drift}¢</b></span>` +
+    `<span class="diag-sep">|</span>` +
+    `<span class="diag-item">KEY <b>${harmonyKey} ${harmonyMode}</b></span>` +
+    `<span class="diag-item">CHORD <b>${chordLabel}</b></span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  populateSelectors();
+  buildVoiceCards();
+  wireControls();
+  wireAuthUI();
+  initPatchEditor();
+  initChartUI((sections, navigation, queue) => {
+    state.chartSections = sections;
+    state.chartQueue = queue;
+    if (state.chartActive && sections.length > 0) {
+      const firstBar = sections[0]?.bars?.[0];
+      if (firstBar?.chords?.length > 0) {
+        state.currentChord = firstBar.chords[0];
+      }
+    }
+  });
+
+  // BPM sync: chart tempo → drum engine
+  const chartTempo = $('chartTempo');
+  if (chartTempo) {
+    chartTempo.addEventListener('input', e => {
+      const bpm = parseInt(e.target.value);
+      $('chartTempoVal').textContent = bpm;
+      if (state.drums) state.drums.setBPM(bpm);
+    });
+  }
+
+  // Init MIDI controller
+  initMIDI();
+
+  setStatus('Ready — click Start to begin');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MIDI INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function initMIDI() {
+  state.midi = new MIDIController();
+  const available = await state.midi.init();
+
+  if (!available) {
+    console.log('[THIRI] No MIDI support — keyboard/mouse only');
+    return;
+  }
+
+  const devices = state.midi.getDevices();
+  console.log(`[THIRI] MIDI ready — ${devices.length} device(s):`, devices.map(d => d.name));
+
+  // Register parameter handlers (normalized 0–1 input)
+  state.midi.registerParam('vowel', (n) => {
+    state.vowel = n;
+    if ($('vowelSlider')) $('vowelSlider').value = Math.round(n * 100);
+    const vowelNames = ['ah', 'ee', 'oh', 'oo'];
+    const idx = Math.min(3, Math.floor(n * 3.99));
+    if ($('vowelVal')) $('vowelVal').textContent = vowelNames[idx];
+    if (state.synth) state.synth.setVowel(n);
+  });
+
+  state.midi.registerParam('breath', (n) => {
+    state.breath = n;
+    if ($('breathSlider')) $('breathSlider').value = Math.round(n * 100);
+    if ($('breathVal')) $('breathVal').textContent = `${Math.round(n * 100)}%`;
+    if (state.synth) state.synth.setBreath(n);
+  });
+
+  state.midi.registerParam('master', (n) => {
+    state.masterVol = n;
+    if ($('masterSlider')) $('masterSlider').value = Math.round(n * 100);
+    if ($('masterVal')) $('masterVal').textContent = `${Math.round(n * 100)}%`;
+    if (state.synth) state.synth.setMasterVolume(n);
+  });
+
+  state.midi.registerParam('mix', (n) => {
+    state.mix = n;
+    if ($('mixSlider')) $('mixSlider').value = Math.round(n * 100);
+    if ($('mixVal')) $('mixVal').textContent = `${Math.round(n * 100)}%`;
+    if (state.synth) state.synth.setMix(n);
+  });
+
+  state.midi.registerParam('humanize', (n) => {
+    state.humanize = n;
+    if ($('humanizeSlider')) $('humanizeSlider').value = Math.round(n * 100);
+    if ($('humanizeVal')) $('humanizeVal').textContent = n.toFixed(2);
+    if (state.synth) state.synth.setHumanize(n);
+  });
+
+  state.midi.registerParam('gate', (n) => {
+    state.gateThreshold = n * 0.05;
+    if ($('gateSlider')) $('gateSlider').value = Math.round(n * 50);
+    if ($('gateVal')) $('gateVal').textContent = state.gateThreshold.toFixed(3);
+    if (state.detector) state.detector._rmsThreshold = state.gateThreshold;
+  });
+
+  state.midi.registerParam('confidence', (n) => {
+    state.minConfidence = 0.5 + n * 0.45;
+    if ($('confidenceSlider')) $('confidenceSlider').value = Math.round(state.minConfidence * 100);
+    if ($('confidenceVal')) $('confidenceVal').textContent = state.minConfidence.toFixed(2);
+    if (state.detector) state.detector.minConfidence = state.minConfidence;
+  });
+
+  state.midi.registerParam('smoothing', (n) => {
+    state.smoothingFactor = n * 0.9;
+    if ($('smoothingSlider')) $('smoothingSlider').value = Math.round(state.smoothingFactor * 100);
+    if ($('smoothingVal')) $('smoothingVal').textContent = state.smoothingFactor.toFixed(2);
+    if (state.detector) state.detector.smoothingFactor = state.smoothingFactor;
+  });
+
+  state.midi.registerParam('drumVolume', (n) => {
+    state.drumsVol = n;
+    if ($('drumsVolSlider')) $('drumsVolSlider').value = Math.round(n * 100);
+    if (state.drums) state.drums.setVolume(n);
+  });
+
+  // Drum slot triggers (CC 20–23)
+  for (let i = 0; i < 4; i++) {
+    state.midi.registerParam(`drumSlot${i}`, (n) => {
+      if (n > 0.5 && state.drums) {
+        state.drums.trigger(i);
+        document.querySelectorAll('.drum-slot').forEach(s => s.classList.remove('active'));
+        if (state.drums.playing) {
+          const slot = document.querySelector(`[data-drum-slot="${i}"]`);
+          if (slot) {
+            slot.classList.add('active');
+            slot.querySelector('.drum-slot-icon').textContent = '■';
+          }
+        }
+        document.querySelectorAll('.drum-slot').forEach(s => {
+          if (!s.classList.contains('active')) {
+            s.querySelector('.drum-slot-icon').textContent = '▶';
+          }
+        });
+      }
+    });
+  }
+
+  // MIDI note input — could drive manual harmony in future
+  state.midi.onNoteOn = (note, velocity, channel) => {
+    console.log(`[MIDI] Note ON: ${note} vel:${velocity} ch:${channel}`);
+  };
+}

@@ -1,0 +1,214 @@
+{
+  "tooltips": {
+
+    "authBtn": {
+      "label": "Sign in / sign out",
+      "help": "Create an account to save custom patches, track your sessions, and build your harmonic fingerprint over time. Your data stays yours."
+    },
+
+    "noteDisplay": {
+      "label": "Detected note",
+      "help": "The note Thiri thinks you're singing right now. Updates in real time. If it's jumping around, try tightening the confidence or smoothing knobs."
+    },
+    "freqDisplay": {
+      "label": "Frequency",
+      "help": "The raw frequency of your voice in hertz. A4 = 440 Hz. Useful for tuning reference."
+    },
+    "pitchMeter": {
+      "label": "Pitch meter",
+      "help": "Shows how sharp or flat you are from the nearest note. Center = perfectly in tune. Left = flat. Right = sharp."
+    },
+    "centsDisplay": {
+      "label": "Cents offset",
+      "help": "How many cents sharp (+) or flat (−) you are from the detected note. 100 cents = one semitone. ±10 cents is normal for most singers."
+    },
+    "levelCanvas": {
+      "label": "Input level",
+      "help": "How loud your mic signal is. Green = good. Yellow = getting hot. Red = clipping. Adjust your mic distance or input gain if you're in the red."
+    },
+    "diagnostics": {
+      "label": "Diagnostics",
+      "help": "Live stats from the pitch detection engine. CONF = how sure Thiri is about the note. RMS = your volume level. GATE = whether the noise gate is open or closed. DRIFT = pitch stability. KEY = current key. CHORD = current chord from chart."
+    },
+
+    "keySelect": {
+      "label": "Key",
+      "help": "The root note of the scale Thiri uses to build harmony. If you're singing in Bb, set this to Bb. All harmony voices will stay diatonic to this key."
+    },
+    "modeSelect": {
+      "label": "Mode",
+      "help": "The scale type. Major = bright, happy. Dorian = jazzy minor. Mixolydian = bluesy major. Blues = minor pentatonic + blue note. This changes which notes are 'legal' for the harmony voices."
+    },
+    "voicesGroup": {
+      "label": "Voices",
+      "help": "How many harmony voices sing with you. 1 = one harmony note. 4 = full four-part harmony around your lead. More voices = richer sound but more complex."
+    },
+    "voicingGroup": {
+      "label": "Voicing",
+      "help": "How the harmony notes are spaced. Close = tight cluster (like a barbershop quartet). Open = spread across octaves (like an orchestral arrangement). Drop-2 = second voice drops an octave (classic jazz voicing). Parallel = all voices move the same interval."
+    },
+    "directionGroup": {
+      "label": "Direction",
+      "help": "Where the harmony voices sit relative to your lead. Above = all harmony higher than you. Below = all lower. Around = voices spread above and below your note."
+    },
+
+    "voiceTypeGroup": {
+      "label": "Voice type",
+      "help": "The synthesis engine for harmony voices. Vocal = formant-based vocal tract modeling (choir sound, controlled by Vowel and Breath knobs). Synth = classic oscillator waveforms (sine, saw, square). FM = frequency modulation for complex metallic/bell timbres."
+    },
+    "vowelSlider": {
+      "label": "Vowel",
+      "help": "Morphs the vocal shape of the formant voices. AH = open choir sound. EE = bright nasal. OH = rounded warm. OO = closed hum. Sweep it slowly while singing for evolving vocal textures. Only active in Vocal mode."
+    },
+    "breathSlider": {
+      "label": "Breath",
+      "help": "Adds breathy air noise to the formant voices — like a real singer's breath mixed with tone. 0% = pure tone. 50% = whispered texture. 100% = mostly air. Subtle amounts (10-20%) add realism."
+    },
+
+    "voiceWave0": { "label": "Voice 1 waveform", "help": "The oscillator shape for this harmony voice. Sine = pure, smooth tone. Triangle = slightly brighter. Sawtooth = buzzy, rich harmonics. Square = hollow, reedy." },
+    "voiceWave1": { "label": "Voice 2 waveform", "help": "The oscillator shape for this harmony voice. Sine = pure, smooth tone. Triangle = slightly brighter. Sawtooth = buzzy, rich harmonics. Square = hollow, reedy." },
+    "voiceWave2": { "label": "Voice 3 waveform", "help": "The oscillator shape for this harmony voice. Sine = pure, smooth tone. Triangle = slightly brighter. Sawtooth = buzzy, rich harmonics. Square = hollow, reedy." },
+    "voiceWave3": { "label": "Voice 4 waveform", "help": "The oscillator shape for this harmony voice. Sine = pure, smooth tone. Triangle = slightly brighter. Sawtooth = buzzy, rich harmonics. Square = hollow, reedy." },
+    "voiceDetune0": { "label": "Voice 1 detune", "help": "Slightly shifts this voice's pitch in cents (hundredths of a semitone). Small detune values (±5–10) add chorus-like thickness. Larger values create dissonance." },
+    "voiceDetune1": { "label": "Voice 2 detune", "help": "Slightly shifts this voice's pitch in cents. Small detune values add warmth and width. Each voice detuned differently creates a natural ensemble feel." },
+    "voiceDetune2": { "label": "Voice 3 detune", "help": "Slightly shifts this voice's pitch in cents. Combine with different waveforms per voice for richer textures." },
+    "voiceDetune3": { "label": "Voice 4 detune", "help": "Slightly shifts this voice's pitch in cents. Try detuning voices in opposite directions (e.g. +5 and −5) for stereo width." },
+    "voiceVol0": { "label": "Voice 1 volume", "help": "How loud this harmony voice is in the mix. Turn individual voices up or down to shape the balance of your harmony." },
+    "voiceVol1": { "label": "Voice 2 volume", "help": "How loud this harmony voice is in the mix." },
+    "voiceVol2": { "label": "Voice 3 volume", "help": "How loud this harmony voice is in the mix." },
+    "voiceVol3": { "label": "Voice 4 volume", "help": "How loud this harmony voice is in the mix." },
+
+    "synthToggle": {
+      "label": "Harmony on/off",
+      "help": "Master switch for all harmony voices. Turn off to hear just your dry voice. Turn on to hear the harmony. Useful for A/B comparison while singing."
+    },
+    "mixSlider": {
+      "label": "Mix",
+      "help": "Balance between your dry voice (left) and the harmony voices (right). Full left = only your mic. Full right = only the synth harmony. Middle = both blended."
+    },
+    "masterSlider": {
+      "label": "Master volume",
+      "help": "Overall output volume for everything — your voice and all harmony voices combined."
+    },
+    "humanizeSlider": {
+      "label": "Humanize",
+      "help": "Adds subtle imperfections to the harmony voices — micro-pitch wobble, slight vibrato, tiny timing variations. Makes the synth voices feel less robotic and more like real singers. 0% = perfect machine. 100% = loose and organic."
+    },
+    "fmToggle": {
+      "label": "FM synthesis",
+      "help": "Switches harmony voices from simple waveforms to FM (frequency modulation) synthesis. FM creates complex timbres — bells, brass, electric piano, metallic textures. When on, each voice's waveform becomes a carrier modulated by a second oscillator. Opens up the patch editor for deeper sound design."
+    },
+
+    "gateSlider": {
+      "label": "Gate",
+      "help": "Noise gate threshold. Controls how loud you need to sing before Thiri starts listening. Open = picks up everything including room noise and breaths. Tight = only responds to strong, committed notes. Start in the middle. Tighten if you're getting false triggers from background noise."
+    },
+    "confidenceSlider": {
+      "label": "Confidence",
+      "help": "How certain Thiri needs to be about a note before it harmonizes. Loose = responds even when it's only 60% sure what you're singing — fast but may guess wrong. Strict = waits until it's 90%+ certain — accurate but may feel slow. Trained vocalists with clear pitch can go strict. Hummers and experimenters keep it loose."
+    },
+    "smoothingSlider": {
+      "label": "Smoothing",
+      "help": "Averages your pitch over time to reduce jitter. None = raw tracking, follows every wobble and vibrato — responsive but the harmony may flutter. Max = heavy averaging, harmony voices are rock-solid but react slower to intentional pitch changes. Jazz singers who slide between notes keep it low. Choir singers who sustain long tones turn it up."
+    },
+
+    "drumSlots": {
+      "label": "Drum loops",
+      "help": "Four drum pattern slots. Click one to start playing, click it again to stop. Click a different slot while one is playing to switch patterns at the next beat boundary (Ableton-style). Patterns are synthesized — no audio files needed."
+    },
+    "drumsVolSlider": {
+      "label": "Drum volume",
+      "help": "How loud the drum loops are relative to your voice and harmony. Drums are routed through the master output."
+    },
+    "drumSlot0": {
+      "label": "Straight",
+      "help": "Classic straight-8ths rock/pop beat. Kick on 1 and 3, snare on 2 and 4, steady hi-hats. Good starting point for most songs."
+    },
+    "drumSlot1": {
+      "label": "Swing",
+      "help": "Jazz swing feel with a shuffle on the hi-hat. Ghost notes on the snare. The backbone of jazz, blues, and swing music."
+    },
+    "drumSlot2": {
+      "label": "Latin",
+      "help": "Son clave-based pattern with rim clicks and syncopated kick. Works for bossa nova, salsa, or Afro-Cuban grooves."
+    },
+    "drumSlot3": {
+      "label": "Ballad",
+      "help": "Soft brush-style pattern for slow songs. Gentle kick and ghost snares. Low energy — won't overpower a quiet vocal."
+    },
+
+    "chartActiveToggle": {
+      "label": "Drive harmony",
+      "help": "When on, the chord chart controls what key and harmony Thiri uses — the chords in your chart override the key/mode knobs. As the playhead moves through the chart, Thiri's harmony adapts to each chord. When off, the key/mode knobs control everything and the chart is just a visual reference."
+    },
+    "chartTempo": {
+      "label": "BPM",
+      "help": "Playback speed for the chord chart and drum loops in beats per minute. 60 = slow ballad. 120 = medium groove. 200 = fast bebop. Synced to the drum engine."
+    },
+    "chartInput": {
+      "label": "Chart input",
+      "help": "Type your chord changes here as text. Use standard chord symbols: Cm7, F7, Bbmaj7, Edim, G7alt. Separate chords with | for bar lines. The grid below updates as you type."
+    },
+    "chartGrid": {
+      "label": "Chord grid",
+      "help": "Visual display of your chord chart. The highlighted cell is the current chord. Double-click any cell to edit it. The playhead moves left to right at the BPM you set."
+    },
+    "chartBarsGroup": {
+      "label": "Bars per row",
+      "help": "How many bars to show in each row of the grid. 4 = compact, sees the whole form at once. 8 = standard lead sheet layout. 16 = extended view for longer forms."
+    },
+    "chartLoopBtn": {
+      "label": "Loop",
+      "help": "When on, the chart repeats from the beginning when it reaches the end. Perfect for practicing over changes — set up your chart, hit loop, and sing."
+    },
+    "chartNotesBtn": {
+      "label": "Notes",
+      "help": "Show or hide the individual chord tones inside each grid cell. When on, you'll see the notes that make up each chord (e.g. C-Eb-G-Bb for Cm7). Helpful for learning voicings and seeing what notes are available for melody."
+    },
+
+    "patchesBtn": {
+      "label": "Patches",
+      "help": "Open the patch editor to design custom synth voices for your harmony. Build your own oscillator + filter + envelope + effects chain using Csound parameters. Save and load patches. Requires sign-in."
+    },
+    "startBtn": {
+      "label": "Start / stop",
+      "help": "Starts or stops the mic input, pitch detection, and harmony engine. When you click start, your browser will ask for microphone permission. Use headphones to avoid feedback."
+    },
+    "sessionsBtn": {
+      "label": "Sessions",
+      "help": "View your practice history — which patches you used, how long you played, which keys and voicings you explored. Over time, this builds your harmonic fingerprint. Requires sign-in."
+    },
+
+    "newPatchBtn": { "label": "New patch", "help": "Create a blank patch to start designing a new synth voice from scratch." },
+    "patchName": { "label": "Patch name", "help": "Give your patch a name you'll remember. This is how it appears in the patch selector." },
+    "patchDesc": { "label": "Description", "help": "Optional note about what this patch sounds like or what it's for." },
+    "patchWaveform": { "label": "Oscillator waveform", "help": "The base waveform for this patch. Sine = pure tone. Triangle = soft buzz. Sawtooth = rich and bright. Square = hollow and reedy. FM = frequency modulation for complex timbres like bells and brass." },
+    "patchDetune": { "label": "Oscillator detune", "help": "Global pitch offset for this patch in cents. Use to create slight detuning against other patches for thickness." },
+    "patchUnison": { "label": "Unison voices", "help": "Stack multiple copies of the oscillator with slight pitch and timing differences. 1 = clean single voice. 4 = thick supersaw-style wall of sound." },
+    "patchAttack": { "label": "Attack", "help": "How long it takes for the note to reach full volume after it starts. 0ms = instant hit (like a piano). 500ms+ = slow swell (like a pad or strings)." },
+    "patchDecay": { "label": "Decay", "help": "How long the volume takes to drop from the peak to the sustain level. Short decay = plucky. Long decay = smooth." },
+    "patchSustain": { "label": "Sustain", "help": "The volume level the note holds at while you're still singing. 100% = stays at full volume. 50% = drops to half after the attack and decay." },
+    "patchRelease": { "label": "Release", "help": "How long the note takes to fade out after you stop singing. 0ms = cuts off instantly. 2000ms+ = long tail that rings out." },
+    "patchFilterType": { "label": "Filter type", "help": "Shapes the tone by cutting frequencies. Lowpass = removes highs (warm, dark). Highpass = removes lows (thin, bright). Bandpass = keeps only a narrow band (nasal, focused). Notch = cuts a narrow band (hollow)." },
+    "patchCutoff": { "label": "Cutoff frequency", "help": "Where the filter starts cutting. Low cutoff on a lowpass = dark and muffled. High cutoff = bright and open. Sweep this in real time for classic synth filter movement." },
+    "patchResonance": { "label": "Resonance", "help": "Boosts the frequencies right at the cutoff point. 0% = gentle filter. High resonance = sharp, whistly peak. Extreme = self-oscillation (the filter sings on its own)." },
+    "patchFilterEnv": { "label": "Filter envelope", "help": "How much the ADSR envelope affects the filter cutoff. 0% = filter stays static. 100% = filter sweeps dramatically with each note's attack and decay." },
+    "patchLfoWave": { "label": "LFO waveform", "help": "The shape of the low-frequency oscillator that creates movement. Sine = smooth wobble. Triangle = linear sweep. Sawtooth = ramp up and snap back. Square = on/off stutter." },
+    "patchLfoRate": { "label": "LFO rate", "help": "How fast the LFO oscillates. Slow (1-5 Hz) = gentle vibrato or tremolo. Medium (5-20 Hz) = rhythmic pulse. Fast (20+ Hz) = enters audio-rate territory for metallic textures." },
+    "patchLfoDepth": { "label": "LFO depth", "help": "How much the LFO affects its target. 0% = no modulation. 100% = maximum wobble. Start around 20-30% for subtle movement." },
+    "patchLfoTarget": { "label": "LFO target", "help": "What the LFO modulates. Pitch = vibrato. Filter = wah-wah sweep. Volume = tremolo. Each creates a completely different character." },
+    "patchReverbMix": { "label": "Reverb mix", "help": "How much reverb (room ambience) is added. 0% = dry and close. 50% = natural room sound. 100% = cathedral wash." },
+    "patchReverbSize": { "label": "Reverb size", "help": "The size of the virtual room. Small = tight reflection. Large = cavernous hall. Affects how long the reverb tail lasts." },
+    "patchDelayMix": { "label": "Delay mix", "help": "How much echo is added. 0% = no echo. Higher values = more prominent repeats." },
+    "patchDelayTime": { "label": "Delay time", "help": "Time between each echo repeat in milliseconds. 250ms = eighth note at 120 BPM. 500ms = quarter note. Set to match your tempo for rhythmic echoes." },
+    "patchDelayFb": { "label": "Delay feedback", "help": "How many times the echo repeats. 0% = single echo. 50% = several fading repeats. 90%+ = echoes that build on themselves (careful — can run away)." },
+    "patchPublic": { "label": "Public", "help": "Share this patch with other Thiri users. When on, anyone can find and use your patch. You'll be credited as the creator." },
+    "patchDeleteBtn": { "label": "Delete patch", "help": "Permanently remove this patch. This can't be undone." },
+    "patchSaveBtn": { "label": "Save patch", "help": "Save the current patch settings to your account. Overwrites the previous version." },
+
+    "_midi": {
+      "label": "MIDI CC Map",
+      "help": "Thiri auto-detects connected MIDI controllers. Default CC mapping: CC1 (Mod Wheel) → Vowel, CC2 (Breath) → Breath, CC7 (Volume) → Master, CC11 (Expression) → Mix, CC74 → Humanize, CC71 → Gate, CC73 → Confidence, CC72 → Smoothing, CC16 → Drum Volume, CC20-23 → Drum Slots 1-4."
+    }
+  }
+}
