@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THIRI — Privacy Policy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" crossorigin="anonymous" />
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .legal-content { max-width: 680px; margin: 0 auto; padding: 24px; }
+    .legal-content h1 { font-family: var(--font-mono); font-size: 18px; color: var(--gold); letter-spacing: 0.15em; margin-bottom: 24px; }
+    .legal-content h2 { font-family: var(--font-mono); font-size: 13px; color: var(--gold); letter-spacing: 0.1em; margin-top: 28px; margin-bottom: 8px; }
+    .legal-content p, .legal-content li { font-family: var(--font-ui); font-size: 12px; color: var(--text-dim); line-height: 1.7; margin-bottom: 10px; }
+    .legal-content ul { padding-left: 20px; }
+    .legal-content strong { color: var(--text); }
+    .legal-content table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    .legal-content th, .legal-content td { font-family: var(--font-ui); font-size: 11px; color: var(--text-dim); padding: 8px; border: 1px solid var(--border); text-align: left; }
+    .legal-content th { color: var(--gold); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; }
+    .legal-content a { color: var(--gold); }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand">
+      <a href="/" style="text-decoration: none; display: flex; align-items: center; gap: 4px;">
+        <div class="logo-mark">&#x2B21;</div>
+        <h1 class="logo-text">THIRI</h1>
+        <span class="logo-dot">.ai</span>
+      </a>
+    </div>
+    <div class="logo-sub">PRIVACY POLICY</div>
+  </header>
+
+  <main class="legal-content">
+    <h1>PRIVACY POLICY</h1>
+    <p><strong>Effective Date:</strong> March 30, 2026<br /><strong>Company:</strong> Blues Prince Media</p>
+
+    <h2>What We Collect</h2>
+    <p><strong>Account Data:</strong> Email address and password (hashed) when you create an account.</p>
+    <p><strong>Purchase Data:</strong> Payment processed by Stripe. We never see or store your credit card number.</p>
+    <p><strong>License Activation:</strong> Activation timestamp and product type.</p>
+
+    <h2>What the Plugins Do NOT Collect</h2>
+    <p>The THIRI desktop plugins (VST3/AU/AAX) do <strong>not</strong>:</p>
+    <ul>
+      <li>Phone home or make any network requests</li>
+      <li>Collect usage analytics or telemetry</li>
+      <li>Track what you play, record, or produce</li>
+      <li>Send any data to our servers</li>
+    </ul>
+
+    <h2>Third-Party Services</h2>
+    <table>
+      <tr><th>Service</th><th>Purpose</th></tr>
+      <tr><td>Supabase</td><td>Authentication and database</td></tr>
+      <tr><td>Stripe</td><td>Payment processing</td></tr>
+      <tr><td>Vercel</td><td>Web and API hosting</td></tr>
+    </table>
+
+    <h2>Your Rights</h2>
+    <ul>
+      <li><strong>Access</strong> your data by signing into demo.thiri.ai</li>
+      <li><strong>Delete</strong> your account by contacting support@bluesprincemedia.com</li>
+      <li><strong>Opt out</strong> of email communications (except critical license notifications)</li>
+    </ul>
+
+    <h2>Data Security</h2>
+    <p>All data in transit is encrypted via HTTPS/TLS. Authentication uses industry-standard JWT. License files use HMAC-SHA256 cryptographic signatures. Database access is protected by row-level security policies.</p>
+
+    <h2>Contact</h2>
+    <p>Blues Prince Media<br />Email: privacy@bluesprincemedia.com<br />Web: <a href="https://thiri.ai">thiri.ai</a></p>
+
+    <p style="margin-top: 28px; color: var(--text-muted); font-size: 11px;"><em>The plugins don't spy on you. Period.</em></p>
+  </main>
+
+  <footer class="site-footer">
+    <span class="site-footer-brand">Blues Prince Media</span>
+    <span class="site-footer-sep">&middot;</span>
+    <a href="/" class="site-footer-link">Home</a>
+    <span class="site-footer-sep">&middot;</span>
+    <a href="/terms" class="site-footer-link">Terms</a>
+  </footer>
+</body>
+</html>
