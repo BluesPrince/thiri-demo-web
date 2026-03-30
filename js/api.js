@@ -9,10 +9,10 @@ import { getAccessToken, refreshSession, isAuthenticated } from './auth.js';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
-// Local dev → woodshedai server; production → Railway URL
+// Local dev → thiri-api server; production → Vercel
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:3001'
-  : 'https://woodshedai-production.up.railway.app';
+  : 'https://thiri-api.vercel.app';
 
 // ─── Fetch wrapper ──────────────────────────────────────────────────────────
 
