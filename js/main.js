@@ -24,6 +24,7 @@ import {
 } from './auth.js';
 import {
   startSession, endSession, pushEvent, startEventBuffer, stopEventBuffer,
+  listLicenses, activateLicense, downloadLicenseFile,
 } from './api.js';
 import { initPatchEditor, openPatchEditor } from './patches.js';
 import { initChartUI } from './chart-ui.js';
@@ -825,23 +826,90 @@ function wireAuthUI() {
   // Patches button
   patchesBtn.addEventListener('click', () => openPatchEditor());
 
+  // License button + modal
+  const licensesBtn = $('licensesBtn');
+  const licenseModal = $('licenseModal');
+  licensesBtn.addEventListener('click', openLicenseModal);
+  $('licenseModalClose').addEventListener('click', () => licenseModal.classList.add('hidden'));
+
   // React to auth state changes
   onAuthStateChange(session => {
     const user = session?.user;
     if (user) {
       authBtn.textContent = 'SIGN OUT';
       authBtn.classList.add('signed-in');
-      // Show patches/sessions buttons
+      // Show patches/sessions/license buttons
       patchesBtn.style.visibility = 'visible';
       $('sessionsBtn').style.visibility = 'visible';
+      licensesBtn.style.visibility = 'visible';
     } else {
       authBtn.textContent = 'SIGN IN';
       authBtn.classList.remove('signed-in');
       patchesBtn.style.visibility = 'hidden';
       $('sessionsBtn').style.visibility = 'hidden';
+      licensesBtn.style.visibility = 'hidden';
     }
   });
 }
+
+async function openLicenseModal() {
+  const modal = $('licenseModal');
+  const content = $('licenseContent');
+  modal.classList.remove('hidden');
+  content.innerHTML = '<p class="text-dim">Loading...</p>';
+
+  try {
+    const licenses = await listLicenses();
+    if (!licenses.length) {
+      content.innerHTML = `
+        <p class="text-dim">No licenses found.</p>
+        <p style="color: var(--gold); margin-top: 12px; font-size: 13px;">
+          Purchase THIRI Suite to unlock the full plugin experience.
+        </p>
+      `;
+      return;
+    }
+
+    content.innerHTML = licenses.map(lic => {
+      const productName = lic.product.replace('thiri_', '').toUpperCase();
+      const isActivated = !!lic.activated_at;
+      const dateStr = isActivated
+        ? new Date(lic.activated_at).toLocaleDateString()
+        : new Date(lic.created_at).toLocaleDateString();
+      return `
+        <div style="padding: 14px; margin-bottom: 10px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong style="color: #d4af37; font-size: 14px;">THIRI ${productName}</strong>
+              <div style="color: #888; font-size: 11px; margin-top: 4px;">
+                ${isActivated ? 'Activated ' + dateStr : 'Purchased ' + dateStr + ' \u2014 not yet activated'}
+              </div>
+            </div>
+            <button class="btn-sm" onclick="window._activateLicense('${lic.id}')"
+              style="background: rgba(212,175,55,0.15); color: #d4af37; border: 1px solid rgba(212,175,55,0.3); cursor: pointer;">
+              ${isActivated ? 'RE-DOWNLOAD' : 'ACTIVATE'}
+            </button>
+          </div>
+          <div style="color: #666; font-size: 10px; margin-top: 10px;">
+            Save <code style="color: #999;">license.key</code> to: <code style="color: #999;">~/Documents/THIRI/license.key</code>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    content.innerHTML = `<p style="color: #e44; padding: 8px;">${err.message}</p>`;
+  }
+}
+
+// Global handler for license activation button clicks
+window._activateLicense = async (licenseId) => {
+  try {
+    const result = await activateLicense(licenseId);
+    downloadLicenseFile(result.content, result.filename);
+  } catch (err) {
+    alert('Activation failed: ' + err.message);
+  }
+};
 
 function updateAuthModalMode() {
   $('authModalTitle').textContent = authIsSignUp ? 'SIGN UP' : 'SIGN IN';

@@ -188,3 +188,39 @@ async function flushBuffer() {
     console.warn('[THIRI] Event flush failed:', err.message);
   }
 }
+
+// ─── Licenses ──────────────────────────────────────────────────────────────────
+
+/** List user's active licenses */
+export async function listLicenses() {
+  return apiFetch('/api/thiri/licenses');
+}
+
+/** Activate a license — returns { filename, content, product } */
+export async function activateLicense(licenseId) {
+  return apiFetch('/api/thiri/licenses/activate', {
+    method: 'POST',
+    body: JSON.stringify({ license_id: licenseId }),
+  });
+}
+
+/** Create a Stripe checkout session for a THIRI product */
+export async function createThiriCheckout(product) {
+  return apiFetch('/api/thiri/checkout', {
+    method: 'POST',
+    body: JSON.stringify({ product }),
+  });
+}
+
+/** Trigger a browser download of the license file */
+export function downloadLicenseFile(content, filename = 'license.key') {
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

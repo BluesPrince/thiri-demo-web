@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THIRI — Activate License</title>
+  <meta name="description" content="Activate your THIRI license and download your license key file." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" crossorigin="anonymous" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="header-row">
+      <div class="header-brand">
+        <a href="/" style="text-decoration: none; display: flex; align-items: center; gap: 4px;">
+          <div class="logo-mark">&#x2B21;</div>
+          <h1 class="logo-text">THIRI</h1>
+          <span class="logo-dot">.ai</span>
+        </a>
+      </div>
+    </div>
+    <div class="logo-sub">LICENSE ACTIVATION</div>
+  </header>
+
+  <main class="app-main">
+
+    <!-- Sign-In Section (shown when not authenticated) -->
+    <section id="signInSection" class="activate-section">
+      <div class="activate-panel">
+        <h2 class="activate-heading">SIGN IN TO ACTIVATE</h2>
+        <p class="text-dim" style="margin-bottom: 16px; font-size: 12px;">Sign in with your THIRI account to view and activate your licenses.</p>
+        <form id="authForm">
+          <div class="form-group">
+            <label class="ctrl-label">EMAIL</label>
+            <input type="email" id="authEmail" class="form-input" required autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label class="ctrl-label">PASSWORD</label>
+            <input type="password" id="authPassword" class="form-input" required autocomplete="current-password" minlength="6" />
+          </div>
+          <div id="authError" class="auth-error hidden"></div>
+          <button type="submit" id="authSubmit" class="start-btn" style="width: 100%; margin-top: 8px;">SIGN IN</button>
+          <div style="text-align: center; margin-top: 12px;">
+            <span id="authToggleText" class="text-dim" style="font-size: 11px;">No account?</span>
+            <button type="button" id="authToggleBtn" style="background: none; border: none; color: var(--gold); cursor: pointer; font-size: 11px; font-family: var(--font-mono);">Sign up</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Licenses Section (shown when authenticated) -->
+    <section id="licensesSection" class="activate-section hidden">
+      <div class="activate-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h2 class="activate-heading">YOUR LICENSES</h2>
+          <button id="signOutBtn" class="btn-sm btn-outline">SIGN OUT</button>
+        </div>
+        <div id="userEmail" class="text-dim" style="margin-bottom: 16px; font-size: 11px;"></div>
+        <div id="licensesList"></div>
+      </div>
+    </section>
+
+    <!-- Instructions (visible when authenticated) -->
+    <section id="instructionsSection" class="activate-section hidden">
+      <div class="activate-panel">
+        <h2 class="activate-heading">INSTALLATION</h2>
+        <div class="activate-steps">
+          <div class="activate-step">
+            <span class="activate-step-num">1</span>
+            <div>
+              <p class="activate-step-text">Click <strong>ACTIVATE</strong> above to generate and download your <code>license.key</code> file.</p>
+            </div>
+          </div>
+          <div class="activate-step">
+            <span class="activate-step-num">2</span>
+            <div>
+              <p class="activate-step-text">Create the THIRI folder if it doesn't exist:</p>
+              <code class="activate-code">mkdir -p ~/Documents/THIRI</code>
+            </div>
+          </div>
+          <div class="activate-step">
+            <span class="activate-step-num">3</span>
+            <div>
+              <p class="activate-step-text">Move the downloaded file:</p>
+              <code class="activate-code">mv ~/Downloads/license.key ~/Documents/THIRI/license.key</code>
+            </div>
+          </div>
+          <div class="activate-step">
+            <span class="activate-step-num">4</span>
+            <div>
+              <p class="activate-step-text">Launch your DAW and open any THIRI plugin. It reads the license file automatically.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Success Toast -->
+    <div id="activateSuccess" class="activate-success hidden">
+      &#x2713; License activated! File downloaded.
+    </div>
+
+  </main>
+
+  <footer class="site-footer">
+    <span class="site-footer-brand">Blues Prince Media</span>
+    <span class="site-footer-sep">&middot;</span>
+    <a href="/demo" class="site-footer-link">Try the Demo</a>
+    <span class="site-footer-sep">&middot;</span>
+    <a href="https://thiri.ai" class="site-footer-link">thiri.ai</a>
+  </footer>
+
+  <script type="module" src="../js/activate.js"></script>
+</body>
+</html>

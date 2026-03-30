@@ -1584,3 +1584,168 @@ section {
   background: var(--gold);
   box-shadow: 0 0 6px var(--gold);
 }
+
+/* ── Activate Page ─────────────────────────────────────────── */
+.activate-section {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.activate-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+
+.activate-heading {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+  margin-bottom: 4px;
+}
+
+.activate-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.activate-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.activate-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(212, 160, 23, 0.1);
+  border: 1px solid var(--gold-dim);
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.activate-step-text {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.activate-step-text strong {
+  color: var(--gold);
+}
+
+.activate-step-text code,
+.activate-code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+  background: var(--surface2);
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.license-card {
+  padding: 16px;
+  margin-bottom: 10px;
+  background: var(--surface2);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.license-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.license-product {
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.1em;
+}
+
+.btn-gold {
+  background: rgba(212, 160, 23, 0.15);
+  color: var(--gold);
+  border: 1px solid rgba(212, 160, 23, 0.3);
+  cursor: pointer;
+}
+
+.btn-gold:hover {
+  background: rgba(212, 160, 23, 0.25);
+  border-color: var(--gold);
+}
+
+.activate-success {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(212, 160, 23, 0.15);
+  border: 1px solid var(--gold-dim);
+  color: var(--gold-light);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  padding: 14px 28px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 1000;
+}
+
+/* ── Shared Footer ─────────────────────────────────────────── */
+.site-footer {
+  width: 100%;
+  max-width: 780px;
+  text-align: center;
+  padding: 32px 0 24px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto;
+}
+
+.site-footer-brand {
+  color: var(--text-dim);
+}
+
+.site-footer-sep {
+  color: var(--border-glow);
+}
+
+.site-footer-link {
+  color: var(--gold-dim);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.site-footer-link:hover {
+  color: var(--gold);
+}

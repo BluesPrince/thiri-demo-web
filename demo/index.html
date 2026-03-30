@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THIRI.ai — Live Vocal Harmonizer</title>
+  <meta name="description" content="Live vocal harmonizer powered by the WoodShed chord intelligence engine. Sing into your mic, hear real-time formant-preserving harmony." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-row">
+      <div class="header-brand">
+        <div class="logo-mark">⬡</div>
+        <h1 class="logo-text">THIRI</h1>
+        <span class="logo-dot">.ai</span>
+      </div>
+      <div id="authArea" class="auth-area">
+        <button id="sessionsBtn" class="btn-sm btn-outline" style="visibility: hidden">SESSIONS</button>
+        <button id="patchesBtn" class="btn-sm btn-outline" style="visibility: hidden">PATCHES</button>
+        <button id="licensesBtn" class="btn-sm btn-outline" style="visibility: hidden">LICENSE</button>
+        <button id="authBtn" class="auth-btn">SIGN IN</button>
+      </div>
+    </div>
+    <div class="logo-sub">TONAL HARMONIC INTELLIGENCE · WOODSHED ENGINE</div>
+  </header>
+
+  <!-- Auth Modal -->
+  <div id="authModal" class="modal-overlay hidden">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <span id="authModalTitle" class="modal-title">SIGN IN</span>
+        <button id="authModalClose" class="modal-close">&times;</button>
+      </div>
+      <form id="authForm" class="auth-form">
+        <div class="form-group">
+          <label class="ctrl-label">EMAIL</label>
+          <input type="email" id="authEmail" class="form-input" required autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label class="ctrl-label">PASSWORD</label>
+          <input type="password" id="authPassword" class="form-input" required autocomplete="current-password" minlength="6" />
+        </div>
+        <div id="authError" class="auth-error hidden"></div>
+        <button type="submit" id="authSubmit" class="start-btn auth-submit">SIGN IN</button>
+        <div class="auth-toggle-row">
+          <span id="authToggleText" class="text-dim">No account?</span>
+          <button type="button" id="authToggleBtn" class="auth-link">Sign up</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Patch Editor Modal -->
+  <div id="patchModal" class="modal-overlay hidden">
+    <div class="modal-panel modal-panel-wide">
+      <div class="modal-header">
+        <span class="modal-title">PATCH EDITOR</span>
+        <button id="patchModalClose" class="modal-close">&times;</button>
+      </div>
+      <div class="patch-editor">
+        <div class="patch-sidebar">
+          <div class="patch-list-header">
+            <span class="ctrl-label">PATCHES</span>
+            <button id="newPatchBtn" class="btn-sm">+ NEW</button>
+          </div>
+          <div id="patchList" class="patch-list"></div>
+        </div>
+        <div class="patch-edit-area">
+          <div class="form-group">
+            <label class="ctrl-label">NAME</label>
+            <input type="text" id="patchName" class="form-input" placeholder="My Patch" />
+          </div>
+          <div class="form-group">
+            <label class="ctrl-label">DESCRIPTION</label>
+            <input type="text" id="patchDesc" class="form-input" placeholder="Optional description" />
+          </div>
+          <div class="patch-section-grid">
+            <div class="patch-panel">
+              <span class="ctrl-label">OSCILLATOR</span>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Waveform</label>
+                <select id="patchWaveform" class="ctrl-select">
+                  <option value="sine">Sine</option>
+                  <option value="triangle">Triangle</option>
+                  <option value="sawtooth">Sawtooth</option>
+                  <option value="square">Square</option>
+                  <option value="fm">FM</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Detune (cents)</label>
+                <input type="range" id="patchDetune" class="mix-slider" min="-100" max="100" value="0" />
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Unison Voices</label>
+                <input type="range" id="patchUnison" class="mix-slider" min="1" max="4" value="1" />
+              </div>
+            </div>
+            <div class="patch-panel">
+              <span class="ctrl-label">ENVELOPE</span>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Attack</label>
+                <input type="range" id="patchAttack" class="mix-slider" min="0" max="2000" value="100" />
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Decay</label>
+                <input type="range" id="patchDecay" class="mix-slider" min="0" max="2000" value="200" />
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Sustain</label>
+                <input type="range" id="patchSustain" class="mix-slider" min="0" max="100" value="80" />
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Release</label>
+                <input type="range" id="patchRelease" class="mix-slider" min="0" max="5000" value="400" />
+              </div>
+            </div>
+            <div class="patch-panel">
+              <span class="ctrl-label">FILTER</span>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Type</label>
+                <select id="patchFilterType" class="ctrl-select">
+                  <option value="lowpass">Lowpass</option>
+                  <option value="highpass">Highpass</option>
+                  <option value="bandpass">Bandpass</option>
+                  <option value="notch">Notch</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Cutoff (Hz)</label>
+                <input type="range" id="patchCutoff" class="mix-slider" min="20" max="20000" value="2000" />
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Resonance</label>
+                <input type="range" id="patchResonance" class="mix-slider" min="0" max="100" value="50" />
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Env Amount</label>
+                <input type="range" id="patchFilterEnv" class="mix-slider" min="0" max="100" value="30" />
+              </div>
+            </div>
+            <div class="patch-panel">
+              <span class="ctrl-label">LFO</span>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Waveform</label>
+                <select id="patchLfoWave" class="ctrl-select">
+                  <option value="sine">Sine</option>
+                  <option value="triangle">Triangle</option>
+                  <option value="sawtooth">Sawtooth</option>
+                  <option value="square">Square</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Rate (Hz)</label>
+                <input type="range" id="patchLfoRate" class="mix-slider" min="1" max="2000" value="50" />
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Depth</label>
+                <input type="range" id="patchLfoDepth" class="mix-slider" min="0" max="100" value="10" />
+              </div>
+              <div class="form-group">
+                <label class="ctrl-label-sm">Target</label>
+                <select id="patchLfoTarget" class="ctrl-select">
+                  <option value="pitch">Pitch</option>
+                  <option value="filter">Filter</option>
+                  <option value="volume">Volume</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="patch-panel">
+            <span class="ctrl-label">EFFECTS</span>
+            <div class="effects-row">
+              <div class="effect-group">
+                <span class="ctrl-label-sm">Reverb Mix</span>
+                <input type="range" id="patchReverbMix" class="mix-slider" min="0" max="100" value="30" />
+              </div>
+              <div class="effect-group">
+                <span class="ctrl-label-sm">Reverb Size</span>
+                <input type="range" id="patchReverbSize" class="mix-slider" min="0" max="100" value="60" />
+              </div>
+              <div class="effect-group">
+                <span class="ctrl-label-sm">Delay Mix</span>
+                <input type="range" id="patchDelayMix" class="mix-slider" min="0" max="100" value="20" />
+              </div>
+              <div class="effect-group">
+                <span class="ctrl-label-sm">Delay Time</span>
+                <input type="range" id="patchDelayTime" class="mix-slider" min="0" max="1000" value="250" />
+              </div>
+              <div class="effect-group">
+                <span class="ctrl-label-sm">Delay Feedback</span>
+                <input type="range" id="patchDelayFb" class="mix-slider" min="0" max="95" value="40" />
+              </div>
+            </div>
+          </div>
+          <div class="patch-actions">
+            <label class="toggle-switch patch-public-toggle">
+              <input type="checkbox" id="patchPublic" />
+              <span class="toggle-track"><span class="toggle-knob"></span></span>
+            </label>
+            <span class="fm-label">Public</span>
+            <div class="patch-actions-right">
+              <button id="patchDeleteBtn" class="btn-sm btn-danger">DELETE</button>
+              <button id="patchSaveBtn" class="btn-sm btn-gold">SAVE</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- License Activation Modal -->
+  <div id="licenseModal" class="modal-overlay hidden">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <span class="modal-title">THIRI LICENSE</span>
+        <button id="licenseModalClose" class="modal-close">&times;</button>
+      </div>
+      <div id="licenseContent" style="padding: 16px;">
+        <p class="text-dim">Loading licenses...</p>
+      </div>
+    </div>
+  </div>
+
+  <main class="app-main">
+
+    <!-- ═══════ ROW 1: Pitch + Input Level ═══════ -->
+    <section class="top-row">
+      <div class="pitch-panel">
+        <div class="pitch-display-label">DETECTED NOTE</div>
+        <div id="noteDisplay" class="note-display">–</div>
+        <div id="freqDisplay" class="freq-display">– Hz</div>
+        <div class="cents-row">
+          <span class="meter-label">FLAT</span>
+          <div class="pitch-meter-track">
+            <div id="pitchMeter" class="pitch-meter-fill"></div>
+            <div class="pitch-meter-center"></div>
+          </div>
+          <span class="meter-label">SHARP</span>
+          <span id="centsDisplay" class="cents-readout"></span>
+        </div>
+      </div>
+      <div class="level-panel">
+        <div class="level-label">INPUT LEVEL</div>
+        <canvas id="levelCanvas" class="level-canvas" width="300" height="40"></canvas>
+        <div id="diagnostics" class="diagnostics-bar">
+          <span class="diag-item">CONF <b>–</b></span>
+          <span class="diag-item">RMS <b>–</b></span>
+          <span class="diag-item">GATE <b>–</b></span>
+          <span class="diag-item">DRIFT <b>–</b></span>
+          <span class="diag-sep">|</span>
+          <span class="diag-item">KEY <b>–</b></span>
+          <span class="diag-item">CHORD <b>–</b></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════ ROW 2: Compact Controls Bar ═══════ -->
+    <section class="controls-bar">
+      <div class="control-group">
+        <label class="ctrl-label">KEY</label>
+        <select id="keySelect" class="ctrl-select"></select>
+      </div>
+      <div class="control-group">
+        <label class="ctrl-label">MODE</label>
+        <select id="modeSelect" class="ctrl-select"></select>
+      </div>
+      <div class="btn-group-wrap">
+        <label class="ctrl-label">VOICES</label>
+        <div id="voicesGroup" class="btn-group">
+          <button class="btn-toggle active" data-voices="1">1</button>
+          <button class="btn-toggle" data-voices="2">2</button>
+          <button class="btn-toggle" data-voices="3">3</button>
+          <button class="btn-toggle" data-voices="4">4</button>
+          <button class="btn-toggle" data-voices="5">5</button>
+        </div>
+      </div>
+      <div class="btn-group-wrap">
+        <label class="ctrl-label">VOICING</label>
+        <div id="voicingGroup" class="btn-group">
+          <button class="btn-toggle active" data-voicing="close">Close</button>
+          <button class="btn-toggle" data-voicing="open">Open</button>
+          <button class="btn-toggle" data-voicing="drop2">Drop-2</button>
+          <button class="btn-toggle" data-voicing="parallel">Para</button>
+          <button class="btn-toggle" data-voicing="jazz">Jazz</button>
+        </div>
+      </div>
+      <div class="btn-group-wrap">
+        <label class="ctrl-label">DIR</label>
+        <div id="directionGroup" class="btn-group">
+          <button class="btn-toggle active" data-direction="above">↑</button>
+          <button class="btn-toggle" data-direction="below">↓</button>
+          <button class="btn-toggle" data-direction="around">↕</button>
+        </div>
+      </div>
+      <div class="btn-group-wrap">
+        <label class="ctrl-label">DROP TYPE</label>
+        <div id="dropGroup" class="btn-group">
+          <button class="btn-toggle" data-drop="close">Close</button>
+          <button class="btn-toggle active" data-drop="drop2">Drop-2</button>
+          <button class="btn-toggle" data-drop="drop3">Drop-3</button>
+          <button class="btn-toggle" data-drop="drop24">Drop-2/4</button>
+        </div>
+      </div>
+      <div class="btn-group-wrap">
+        <label class="ctrl-label">5TH VOICE</label>
+        <div id="fifthVoiceGroup" class="btn-group">
+          <button class="btn-toggle active" data-fifth="double8vb">8vb</button>
+          <button class="btn-toggle" data-fifth="tension9">9th</button>
+          <button class="btn-toggle" data-fifth="tension11">11th</button>
+          <button class="btn-toggle" data-fifth="tension13">13th</button>
+        </div>
+      </div>
+      <div class="btn-group-wrap">
+        <label class="ctrl-label">TRITONE SUB</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="tritoneToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </section>
+
+    <!-- ═══════ ROW 3: Voice Cards + Mix/Sensitivity (2-column) ═══════ -->
+    <section class="main-grid">
+
+      <!-- LEFT: Voice Cards -->
+      <div class="voice-cards-col">
+        <div id="voiceCards" class="voice-cards-grid"></div>
+      </div>
+
+      <!-- RIGHT: Mix + Sensitivity -->
+      <div class="mixer-col">
+        <!-- Voice Type -->
+        <div class="mixer-row voice-type-row">
+          <label class="ctrl-label">VOICE</label>
+          <div id="voiceTypeGroup" class="btn-group">
+            <button class="btn-toggle active" data-voice-type="formant">Vocal</button>
+            <button class="btn-toggle" data-voice-type="oscillator">Synth</button>
+            <button class="btn-toggle" data-voice-type="fm">FM</button>
+          </div>
+        </div>
+        <!-- Harmony Toggle -->
+        <div class="mixer-row">
+          <label class="ctrl-label">HARMONY</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="synthToggle" checked />
+            <span class="toggle-track"><span class="toggle-knob"></span></span>
+          </label>
+        </div>
+        <!-- Mix -->
+        <div class="mixer-row">
+          <label class="ctrl-label">MIX</label>
+          <span class="mix-end-label">DRY</span>
+          <input type="range" id="mixSlider" class="mix-slider" min="0" max="100" value="60" />
+          <span class="mix-end-label">WET</span>
+          <span id="mixVal" class="slider-val">60%</span>
+        </div>
+        <!-- Master -->
+        <div class="mixer-row">
+          <label class="ctrl-label">MASTER</label>
+          <input type="range" id="masterSlider" class="mix-slider" min="0" max="100" value="80" />
+          <span id="masterVal" class="slider-val">80%</span>
+        </div>
+        <!-- Humanize -->
+        <div class="mixer-row">
+          <label class="ctrl-label">HUMAN</label>
+          <input type="range" id="humanizeSlider" class="mix-slider" min="0" max="100" value="35" />
+          <span id="humanizeVal" class="slider-val">0.35</span>
+        </div>
+        <!-- Vowel (formant only) -->
+        <div class="mixer-row" id="vowelRow">
+          <label class="ctrl-label">VOWEL</label>
+          <span class="mix-end-label">AH</span>
+          <input type="range" id="vowelSlider" class="mix-slider vowel-slider" min="0" max="100" value="0" />
+          <span class="mix-end-label">OO</span>
+          <span id="vowelVal" class="slider-val">ah</span>
+        </div>
+        <!-- Breath (formant only) -->
+        <div class="mixer-row" id="breathRow">
+          <label class="ctrl-label">BREATH</label>
+          <input type="range" id="breathSlider" class="mix-slider" min="0" max="100" value="15" />
+          <span id="breathVal" class="slider-val">15%</span>
+        </div>
+
+        <!-- Sensitivity -->
+        <div class="sensitivity-divider"></div>
+        <div class="mixer-row">
+          <label class="ctrl-label">GATE</label>
+          <span class="mix-end-label">OPEN</span>
+          <input type="range" id="gateSlider" class="mix-slider" min="1" max="50" value="10" />
+          <span class="mix-end-label">TIGHT</span>
+          <span id="gateVal" class="slider-val">0.010</span>
+        </div>
+        <div class="mixer-row">
+          <label class="ctrl-label">CONF</label>
+          <span class="mix-end-label">LOOSE</span>
+          <input type="range" id="confidenceSlider" class="mix-slider" min="50" max="95" value="80" />
+          <span class="mix-end-label">STRICT</span>
+          <span id="confidenceVal" class="slider-val">0.80</span>
+        </div>
+        <div class="mixer-row">
+          <label class="ctrl-label">SMOOTH</label>
+          <input type="range" id="smoothingSlider" class="mix-slider" min="0" max="90" value="70" />
+          <span id="smoothingVal" class="slider-val">0.70</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════ ROW 4: Drum Loop Slots ═══════ -->
+    <section class="drums-section">
+      <div class="drums-header">
+        <span class="ctrl-label">DRUM LOOPS</span>
+        <div class="drums-vol-wrap">
+          <span class="ctrl-label-sm">VOL</span>
+          <input type="range" id="drumsVolSlider" class="mix-slider drums-vol-slider" min="0" max="100" value="70" />
+        </div>
+      </div>
+      <div id="drumSlots" class="drum-slots">
+        <button class="drum-slot" data-drum-slot="0">
+          <span class="drum-slot-icon">▶</span>
+          <span class="drum-slot-name">Straight</span>
+        </button>
+        <button class="drum-slot" data-drum-slot="1">
+          <span class="drum-slot-icon">▶</span>
+          <span class="drum-slot-name">Swing</span>
+        </button>
+        <button class="drum-slot" data-drum-slot="2">
+          <span class="drum-slot-icon">▶</span>
+          <span class="drum-slot-name">Latin</span>
+        </button>
+        <button class="drum-slot" data-drum-slot="3">
+          <span class="drum-slot-icon">▶</span>
+          <span class="drum-slot-name">Ballad</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ═══════ ROW 5: Chord Chart ═══════ -->
+    <section class="chart-section">
+      <div class="chart-header">
+        <span class="ctrl-label">CHORD CHART</span>
+        <div class="chart-active-wrap">
+          <label class="toggle-switch">
+            <input type="checkbox" id="chartActiveToggle" />
+            <span class="toggle-track"><span class="toggle-knob"></span></span>
+          </label>
+          <span class="fm-label">Drive Harmony</span>
+        </div>
+        <div class="chart-tempo-wrap">
+          <span class="ctrl-label-sm">BPM</span>
+          <input type="range" id="chartTempo" class="mix-slider chart-tempo-slider" min="40" max="300" value="120" />
+          <span id="chartTempoVal" class="slider-val">120</span>
+        </div>
+      </div>
+      <div class="chart-input-wrap">
+        <textarea id="chartInput" class="chart-input" rows="2"
+          placeholder="Bbm7 | Eb7 | Abmaj7 | Db7 |  —  type here, | = new bar"
+          spellcheck="false"></textarea>
+        <div class="chart-input-hint">| = new bar &nbsp; space = multiple chords per bar &nbsp; % = repeat previous bar</div>
+      </div>
+      <div id="chartGrid" class="chart-grid">
+        <div class="chart-empty">Type a chord chart above</div>
+      </div>
+      <div class="chart-controls">
+        <div class="btn-group-wrap">
+          <label class="ctrl-label">BARS</label>
+          <div id="chartBarsGroup" class="btn-group">
+            <button class="btn-toggle active" data-bars="4">4</button>
+            <button class="btn-toggle" data-bars="8">8</button>
+            <button class="btn-toggle" data-bars="16">16</button>
+          </div>
+        </div>
+        <div class="chart-toggles">
+          <button id="chartLoopBtn" class="btn-sm btn-outline">LOOP</button>
+          <button id="chartNotesBtn" class="btn-sm btn-outline">NOTES</button>
+        </div>
+        <div class="chart-bar-count-wrap">
+          <span class="ctrl-label-sm">BARS:</span>
+          <span id="chartBarCount" class="chart-bar-count">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════ ROW 6: Start ═══════ -->
+    <section class="start-section">
+      <button id="startBtn" class="start-btn">START</button>
+      <div id="statusBar" class="status-bar">Ready — click Start to begin</div>
+    </section>
+
+  </main>
+
+  <!-- id="levelMeter" for JS compat -->
+  <div id="levelMeter" style="display:none"></div>
+
+  <script type="module" src="../js/main.js"></script>
+</body>
+</html>
