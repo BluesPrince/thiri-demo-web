@@ -9,10 +9,10 @@ import { getAccessToken, refreshSession, isAuthenticated } from './auth.js';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
-// Local dev → thiri-api server; production → Vercel
+// Local dev → thiri-api server; production → api.thiri.ai
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:3001'
-  : 'https://thiri-api-blues-prince-media.vercel.app';
+  : 'https://api.thiri.ai';
 
 // ─── Fetch wrapper ──────────────────────────────────────────────────────────
 
