@@ -6,9 +6,9 @@
  */
 
 // ─── Config ─────────────────────────────────────────────────────────────────
-// These point to the shared WoodShed Supabase instance
-const SUPABASE_URL = 'https://fjwwhgyoyidjzvtjkyvb.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqd3doZ3lveWlkanp2dGpreXZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY5OTA5NTYsImV4cCI6MjA1MjU2Njk1Nn0.xTMEpNpMOFDzOGPopml2cQEOmGP_YjNe5JMWFRLJB3Y';
+// BluesPrinceAPI Supabase instance
+const SUPABASE_URL = 'https://idisyegwaghwtvdzqdmu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkaXN5ZWd3YWdod3R2ZHpxZG11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MzU4NTUsImV4cCI6MjA5MDIxMTg1NX0.WhEKxEUga_Pt9R0m8T0JHfvbtUqhA0qaMCiNfBlHAO8'; // Get from: Supabase Dashboard → BluesPrinceAPI → Settings → API → anon public
 
 const STORAGE_KEY = 'thiri_session';
 
