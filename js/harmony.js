@@ -41,6 +41,9 @@ import {
   getAvailableTensions,
   getChordTonesNo5th,
   getScaleDegree,
+  isAvoidNote,
+  replaceAvoidNote,
+  hasMinor9th,
 } from './scales.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -579,6 +582,30 @@ function jazzFiveVoice(leadMidi, key, mode, chordRoot, chordQuality, dropType, f
   // Clamp the 5th voice
   fifthVoice = clampToRange(fifthVoice, VOICE_RANGE.low, VOICE_RANGE.high);
 
+  // ── Minor 9th check on 8vb doubled lead ──
+  // If the doubled lead creates a minor 9th with any of the 4 inner voices,
+  // substitute the 9th of the chord (standard big band arranging fix).
+  const allVoices = [...fourVoices, fifthVoice];
+  for (const v of fourVoices) {
+    if (hasMinor9th(fifthVoice, v)) {
+      // Try the 9th of the chord as replacement
+      if (chordRoot) {
+        const rootPc = NOTE_MAP[chordRoot];
+        if (rootPc !== undefined) {
+          const ninthPc = (rootPc + 14) % 12; // 9th = 14 semitones = 2 semitones above root
+          // Find nearest MIDI note with that pitch class below the lead
+          for (let m = leadMidi - 14; m >= VOICE_RANGE.low; m--) {
+            if (midiToPitchClass(m) === ninthPc) {
+              fifthVoice = m;
+              break;
+            }
+          }
+        }
+      }
+      break; // only fix once
+    }
+  }
+
   return [...fourVoices, fifthVoice];
 }
 
@@ -765,8 +792,24 @@ export function smoothVoiceTransition(newTargets, prevTargets) {
   const usedNew = new Set();
   const usedPrev = new Set();
 
-  // Pass 1: Pin held notes (same note in both sets — zero movement)
+  // Pass 0: Pin common pitch classes (same note name, possibly different octave)
+  // If a pitch class appears in both old and new, keep it in the same voice
   for (let i = 0; i < n; i++) {
+    const prevPc = midiToPitchClass(prevTargets[i]);
+    for (let j = 0; j < newTargets.length; j++) {
+      if (usedNew.has(j)) continue;
+      if (midiToPitchClass(newTargets[j]) === prevPc && Math.abs(newTargets[j] - prevTargets[i]) <= 12) {
+        matched[i] = newTargets[j];
+        usedNew.add(j);
+        usedPrev.add(i);
+        break;
+      }
+    }
+  }
+
+  // Pass 1: Pin exact held notes (same MIDI number — zero movement)
+  for (let i = 0; i < n; i++) {
+    if (usedPrev.has(i)) continue; // already matched by pitch class
     for (let j = 0; j < newTargets.length; j++) {
       if (usedNew.has(j)) continue;
       if (prevTargets[i] === newTargets[j]) {
@@ -825,4 +868,116 @@ export function smoothVoiceTransition(newTargets, prevTargets) {
   }
 
   return matched;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOICE LEADING VALIDATION — Jazz rule enforcement
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Validate and fix a voicing according to jazz voice leading rules.
+ * Returns the corrected voicing + any violations found (for notation display).
+ *
+ * Rules applied (in order):
+ *   1. Avoid note replacement
+ *   2. Minor 9th / minor 2nd elimination
+ *   3. Voice spacing (top 2 voices ≥ 3 semitones apart)
+ *   4. No voice crossing
+ *
+ * @param {number[]} voices - Harmony MIDI notes (sorted low to high)
+ * @param {string} chordRoot - Root note name
+ * @param {string} chordQuality - Chord quality
+ * @param {string} mode - Scale mode
+ * @returns {{ voices: number[], violations: Array }}
+ */
+export function validateVoicing(voices, chordRoot, chordQuality, mode) {
+  if (!voices.length || !chordRoot) return { voices, violations: [] };
+
+  const violations = [];
+  const rootPc = NOTE_MAP[chordRoot];
+  if (rootPc === undefined) return { voices, violations };
+
+  let fixed = [...voices];
+
+  // ── 1. Avoid note replacement ──
+  for (let i = 0; i < fixed.length; i++) {
+    const pc = midiToPitchClass(fixed[i]);
+    if (isAvoidNote(pc, rootPc, chordQuality, mode)) {
+      violations.push({ type: 'avoid_note', voice: i, note: fixed[i] });
+      fixed[i] = replaceAvoidNote(fixed[i], chordRoot, chordQuality);
+    }
+  }
+
+  // ── 2. Minor 9th elimination ──
+  // Check all pairs, prioritize fixing clashes with the bass (lowest voice)
+  for (let i = 0; i < fixed.length; i++) {
+    for (let j = i + 1; j < fixed.length; j++) {
+      if (hasMinor9th(fixed[i], fixed[j])) {
+        violations.push({ type: 'minor_9th', voices: [i, j], notes: [fixed[i], fixed[j]] });
+        // Move the upper voice up 1 semitone to turn minor 2nd into major 2nd
+        fixed[j] = fixed[j] + 1;
+      }
+    }
+  }
+
+  // ── 3. Voice spacing — top 2 voices ≥ 3 semitones (minor 3rd) ──
+  if (fixed.length >= 2) {
+    const sorted = [...fixed].sort((a, b) => a - b);
+    const top = sorted[sorted.length - 1];
+    const secondTop = sorted[sorted.length - 2];
+    const spacing = top - secondTop;
+    if (spacing > 0 && spacing < 3) {
+      violations.push({ type: 'tight_spacing', voices: [fixed.length - 2, fixed.length - 1], spacing });
+      // Don't auto-fix spacing — it could break the voicing. Just flag it.
+    }
+  }
+
+  // ── 4. No voice crossing (each voice must be ≥ the one below) ──
+  for (let i = 1; i < fixed.length; i++) {
+    if (fixed[i] < fixed[i - 1]) {
+      violations.push({ type: 'voice_crossing', voices: [i - 1, i] });
+      // Swap to uncross
+      [fixed[i - 1], fixed[i]] = [fixed[i], fixed[i - 1]];
+    }
+  }
+
+  return { voices: fixed, violations };
+}
+
+/**
+ * Check for parallel fifths or octaves between outer voices across two frames.
+ * @param {number[]} prevVoices - Previous frame voices (sorted low to high)
+ * @param {number[]} currVoices - Current frame voices (sorted low to high)
+ * @returns {Array} Violations found
+ */
+export function checkParallelMotion(prevVoices, currVoices) {
+  const violations = [];
+  if (!prevVoices.length || !currVoices.length) return violations;
+  if (prevVoices.length < 2 || currVoices.length < 2) return violations;
+
+  // Outer voices = lowest (bass) and highest (lead)
+  const prevBass = prevVoices[0];
+  const prevLead = prevVoices[prevVoices.length - 1];
+  const currBass = currVoices[0];
+  const currLead = currVoices[currVoices.length - 1];
+
+  // Check if both moved in the same direction
+  const bassMotion = currBass - prevBass;
+  const leadMotion = currLead - prevLead;
+
+  if (bassMotion !== 0 && leadMotion !== 0 && Math.sign(bassMotion) === Math.sign(leadMotion)) {
+    // Same direction — check for parallel 5ths or octaves
+    const prevInterval = ((prevLead - prevBass) % 12 + 12) % 12;
+    const currInterval = ((currLead - currBass) % 12 + 12) % 12;
+
+    if (prevInterval === currInterval) {
+      if (currInterval === 7) {
+        violations.push({ type: 'parallel_5th', prev: [prevBass, prevLead], curr: [currBass, currLead] });
+      } else if (currInterval === 0) {
+        violations.push({ type: 'parallel_octave', prev: [prevBass, prevLead], curr: [currBass, currLead] });
+      }
+    }
+  }
+
+  return violations;
 }

@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.6/build/cjs/vexflow.js"></script>
 </head>
 <body>
 
@@ -261,6 +262,16 @@
       </div>
     </section>
 
+    <!-- ═══════ ROW 1.5: Live Notation Display ═══════ -->
+    <section class="notation-section">
+      <div class="notation-header">
+        <span class="ctrl-label">VOICING</span>
+        <span id="notationChord" class="notation-chord">–</span>
+        <span id="notationVoicing" class="notation-voicing-label">–</span>
+      </div>
+      <div id="notationDisplay" class="notation-canvas"></div>
+    </section>
+
     <!-- ═══════ ROW 2: Compact Controls Bar ═══════ -->
     <section class="controls-bar">
       <div class="control-group">
@@ -379,6 +390,7 @@
           <span class="mix-end-label">AH</span>
           <input type="range" id="vowelSlider" class="mix-slider vowel-slider" min="0" max="100" value="0" />
           <span class="mix-end-label">OO</span>
+          <!-- 5 vowels: ah, eh, ee, oh, oo -->
           <span id="vowelVal" class="slider-val">ah</span>
         </div>
         <!-- Breath (formant only) -->
@@ -388,8 +400,15 @@
           <span id="breathVal" class="slider-val">15%</span>
         </div>
 
-        <!-- Sensitivity -->
+        <!-- Input Conditioning -->
         <div class="sensitivity-divider"></div>
+        <div class="mixer-row">
+          <label class="ctrl-label">HPF</label>
+          <span class="mix-end-label">20</span>
+          <input type="range" id="hpfSlider" class="mix-slider" min="20" max="500" value="80" />
+          <span class="mix-end-label">500</span>
+          <span id="hpfVal" class="slider-val">80 Hz</span>
+        </div>
         <div class="mixer-row">
           <label class="ctrl-label">GATE</label>
           <span class="mix-end-label">OPEN</span>
@@ -412,32 +431,112 @@
       </div>
     </section>
 
-    <!-- ═══════ ROW 4: Drum Loop Slots ═══════ -->
-    <section class="drums-section">
-      <div class="drums-header">
-        <span class="ctrl-label">DRUM LOOPS</span>
-        <div class="drums-vol-wrap">
-          <span class="ctrl-label-sm">VOL</span>
-          <input type="range" id="drumsVolSlider" class="mix-slider drums-vol-slider" min="0" max="100" value="70" />
+    <!-- ═══════ ROW 3.5: Effects + ADSR + Arpeggiator ═══════ -->
+    <section class="effects-section">
+      <div class="effects-row-header">
+        <span class="ctrl-label">EFFECTS</span>
+      </div>
+      <div class="effects-grid">
+        <!-- Reverb -->
+        <div class="effect-block">
+          <span class="ctrl-label-sm">REVERB</span>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Size</label>
+            <input type="range" id="reverbSize" class="mix-slider" min="0" max="100" value="60" />
+            <span id="reverbSizeVal" class="slider-val">0.60</span>
+          </div>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Damp</label>
+            <input type="range" id="reverbDamping" class="mix-slider" min="0" max="100" value="50" />
+            <span id="reverbDampingVal" class="slider-val">0.50</span>
+          </div>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Mix</label>
+            <input type="range" id="reverbMix" class="mix-slider" min="0" max="100" value="20" />
+            <span id="reverbMixVal" class="slider-val">0.20</span>
+          </div>
+        </div>
+        <!-- Delay -->
+        <div class="effect-block">
+          <span class="ctrl-label-sm">DELAY</span>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Sync</label>
+            <select id="delaySync" class="ctrl-select">
+              <option value="1/4">1/4</option>
+              <option value="1/8" selected>1/8</option>
+              <option value="1/8D">1/8D</option>
+              <option value="1/16">1/16</option>
+              <option value="triplet">Trip</option>
+            </select>
+          </div>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Fdbk</label>
+            <input type="range" id="delayFeedback" class="mix-slider" min="0" max="90" value="35" />
+            <span id="delayFeedbackVal" class="slider-val">0.35</span>
+          </div>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Mix</label>
+            <input type="range" id="delayMix" class="mix-slider" min="0" max="100" value="20" />
+            <span id="delayMixVal" class="slider-val">0.20</span>
+          </div>
+        </div>
+        <!-- ADSR Envelope -->
+        <div class="effect-block">
+          <span class="ctrl-label-sm">ENVELOPE</span>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Atk</label>
+            <input type="range" id="adsrAttack" class="mix-slider" min="1" max="2000" value="10" />
+            <span id="adsrAttackVal" class="slider-val">10ms</span>
+          </div>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Dec</label>
+            <input type="range" id="adsrDecay" class="mix-slider" min="10" max="2000" value="100" />
+            <span id="adsrDecayVal" class="slider-val">100ms</span>
+          </div>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Sus</label>
+            <input type="range" id="adsrSustain" class="mix-slider" min="0" max="100" value="80" />
+            <span id="adsrSustainVal" class="slider-val">0.80</span>
+          </div>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Rel</label>
+            <input type="range" id="adsrRelease" class="mix-slider" min="10" max="5000" value="150" />
+            <span id="adsrReleaseVal" class="slider-val">150ms</span>
+          </div>
+        </div>
+        <!-- Arpeggiator -->
+        <div class="effect-block">
+          <span class="ctrl-label-sm">ARPEGGIATOR</span>
+          <div class="mixer-row">
+            <label class="ctrl-label-sm">Mode</label>
+            <select id="arpMode" class="ctrl-select">
+              <option value="off" selected>Off</option>
+              <option value="sync">Sync</option>
+              <option value="beat">Beat</option>
+              <option value="rt">RT</option>
+            </select>
+          </div>
         </div>
       </div>
-      <div id="drumSlots" class="drum-slots">
-        <button class="drum-slot" data-drum-slot="0">
-          <span class="drum-slot-icon">▶</span>
-          <span class="drum-slot-name">Straight</span>
-        </button>
-        <button class="drum-slot" data-drum-slot="1">
-          <span class="drum-slot-icon">▶</span>
-          <span class="drum-slot-name">Swing</span>
-        </button>
-        <button class="drum-slot" data-drum-slot="2">
-          <span class="drum-slot-icon">▶</span>
-          <span class="drum-slot-name">Latin</span>
-        </button>
-        <button class="drum-slot" data-drum-slot="3">
-          <span class="drum-slot-icon">▶</span>
-          <span class="drum-slot-name">Ballad</span>
-        </button>
+    </section>
+
+    <!-- ═══════ ROW 4: Chord Pads ═══════ -->
+    <section class="pads-section">
+      <div class="pads-header">
+        <span class="ctrl-label">CHORD PADS</span>
+        <span id="padsKeyDisplay" class="pads-key-display">C Major</span>
+      </div>
+      <div class="pads-layout">
+        <div class="pads-toggle-col">
+          <button id="domToggle" class="pad-toggle" title="Toggle ii-7 → dominant 7">DOM</button>
+          <button id="ttToggle" class="pad-toggle" title="Toggle V7 → tritone sub">TT</button>
+          <div class="pad-toggle-spacer"></div>
+        </div>
+        <div class="pads-grid-col">
+          <div id="padRow3" class="pad-row pad-row-approach"></div>
+          <div id="padRow2" class="pad-row pad-row-dominant"></div>
+          <div id="padRow1" class="pad-row pad-row-diatonic"></div>
+        </div>
       </div>
     </section>
 
@@ -487,9 +586,10 @@
       </div>
     </section>
 
-    <!-- ═══════ ROW 6: Start ═══════ -->
+    <!-- ═══════ ROW 6: Start + Hold ═══════ -->
     <section class="start-section">
       <button id="startBtn" class="start-btn">START</button>
+      <button id="holdBtn" class="hold-btn">HOLD</button>
       <div id="statusBar" class="status-bar">Ready — click Start to begin</div>
     </section>
 

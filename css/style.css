@@ -1749,3 +1749,281 @@ section {
 .site-footer-link:hover {
   color: var(--gold);
 }
+
+/* ── Hold Button ─────────────────────────────────────────── */
+.hold-btn {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  padding: 12px 28px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.hold-btn:hover {
+  border-color: var(--border-glow);
+}
+
+.hold-btn.active {
+  color: var(--gold-light);
+  border-color: var(--gold);
+  background: rgba(212, 160, 23, 0.15);
+  box-shadow: var(--active-glow);
+}
+
+/* ── Notation Display (THIRI 1.2) ────────────────────────── */
+.notation-section {
+  padding: 14px 22px;
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+}
+
+.notation-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.notation-chord {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gold-light);
+}
+
+.notation-voicing-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.notation-canvas {
+  min-height: 200px;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.notation-canvas svg {
+  background: transparent;
+}
+
+/* Override VexFlow default colors for dark theme */
+.notation-canvas svg line,
+.notation-canvas svg path {
+  stroke: var(--text-dim) !important;
+}
+
+.notation-canvas svg text {
+  fill: var(--text-dim) !important;
+}
+
+/* ── Chord Pads (THIRI 1.2) ──────────────────────────────── */
+.pads-section {
+  padding: 16px 22px;
+}
+
+.pads-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.pads-key-display {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 0.1em;
+}
+
+.pads-layout {
+  display: flex;
+  gap: 10px;
+}
+
+.pads-toggle-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: flex-start;
+}
+
+.pad-toggle {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pad-toggle.active {
+  color: var(--gold);
+  border-color: var(--gold-dim);
+  background: rgba(212, 160, 23, 0.12);
+  box-shadow: var(--active-glow);
+}
+
+.pad-toggle-spacer {
+  min-height: 38px;
+}
+
+.pads-grid-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pad-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.chord-pad {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s;
+  min-height: 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  user-select: none;
+}
+
+.chord-pad:hover {
+  border-color: var(--border-glow);
+  background: var(--surface3);
+}
+
+.chord-pad.active {
+  color: var(--gold-light);
+  border-color: var(--gold);
+  background: rgba(212, 160, 23, 0.15);
+  box-shadow: var(--active-glow);
+}
+
+.chord-pad .pad-symbol {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.chord-pad .pad-label {
+  font-size: 7px;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.pad-row-diatonic .chord-pad {
+  border-bottom-width: 2px;
+  border-bottom-color: var(--gold-dim);
+}
+
+@media (max-width: 640px) {
+  .pad-row {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ── Effects Section (THIRI 1.1) ─────────────────────────── */
+.effects-section {
+  padding: 16px 22px;
+}
+
+.effects-row-header {
+  margin-bottom: 12px;
+}
+
+.effects-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.effect-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.effect-block > .ctrl-label-sm {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--gold);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.effect-block .mixer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.effect-block .mixer-row .ctrl-label-sm {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  min-width: 32px;
+  flex-shrink: 0;
+}
+
+.effect-block .mix-slider {
+  flex: 1;
+  min-width: 0;
+}
+
+.effect-block .slider-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--gold-dim);
+  min-width: 42px;
+  text-align: right;
+}
+
+.effect-block .ctrl-select {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .effects-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

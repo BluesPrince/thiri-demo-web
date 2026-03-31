@@ -12,8 +12,10 @@
  */
 
 import { PitchDetector } from './pitch.js';
-import { getHarmonyNotes, smoothVoiceTransition, getLeadContext } from './harmony.js';
+import { getHarmonyNotes, smoothVoiceTransition, getLeadContext, validateVoicing, checkParallelMotion } from './harmony.js';
+import { initNotation, updateNotation, clearNotation } from './notation.js';
 import { SynthEngine } from './synth.js';
+// SynthEngine.registerWorklet() is called in start() before creating the engine
 import {
   NOTE_NAMES,
   MODE_DISPLAY_NAMES,
@@ -29,8 +31,9 @@ import {
 import { initPatchEditor, openPatchEditor } from './patches.js';
 import { initChartUI } from './chart-ui.js';
 import { chordToScale } from './chord.js';
-import { DrumLoopEngine } from './drums.js';
 import { MIDIController } from './midi.js';
+import { Arpeggiator } from './arp.js';
+import { buildChordGrid, getRomanNumeral, getDominantLabel, getApproachLabel } from './chord-pads.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // APP STATE
@@ -60,12 +63,32 @@ const state = {
   vowel: 0.0,            // formant vowel position (0–1)
   breath: 0.15,          // formant breath amount (0–1)
 
-  // Drum loop
-  drums: null,
-  drumsVol: 0.7,
+  // Chord pads
+  chordGrid: null,       // buildChordGrid() result
+  ttActive: false,       // tritone sub toggle
+  domActive: false,      // dominant toggle
+  activePadId: null,     // 'row-col' string of active pad
 
   // MIDI
   midi: null,
+
+  // Arpeggiator
+  arp: null,
+  arpMode: 'off',
+
+  // Effects
+  reverbSize: 0.6,
+  reverbDamping: 0.5,
+  reverbMix: 0.2,
+  delaySyncType: '1/8',
+  delayFeedback: 0.35,
+  delayMix: 0.2,
+
+  // ADSR
+  adsrAttack: 0.01,
+  adsrDecay: 0.1,
+  adsrSustain: 0.8,
+  adsrRelease: 0.15,
 
   // Pitch detection sensitivity
   gateThreshold: 0.01,
@@ -171,7 +194,10 @@ async function start() {
     const micSource = state.audioCtx.createMediaStreamSource(stream);
     micSource.connect(analyser); // pitch detection only — NOT connected to output
 
-    // Init synth engine (formant voice by default — THIRI.ai vocal sound)
+    // Register pitch-shifter AudioWorklet for vocoder voices
+    await SynthEngine.registerWorklet(state.audioCtx);
+
+    // Init synth engine (formant/vocoder voice by default — THIRI.ai vocal sound)
     state.synth = new SynthEngine(state.audioCtx, 4);
     state.synth.connectMic(stream);
     state.synth.setMasterVolume(state.masterVol);
@@ -181,10 +207,27 @@ async function start() {
     state.synth.setVowel(state.vowel);
     state.synth.setBreath(state.breath);
 
-    // Init drum loop engine
-    state.drums = new DrumLoopEngine(state.audioCtx);
-    state.drums.connect(state.synth.masterGain);
-    state.drums.setVolume(state.drumsVol);
+    // Apply effects settings
+    state.synth.setReverbSize(state.reverbSize);
+    state.synth.setReverbDamping(state.reverbDamping);
+    state.synth.setReverbMix(state.reverbMix);
+    state.synth.setDelaySync(state.delaySyncType);
+    state.synth.setDelayFeedback(state.delayFeedback);
+    state.synth.setDelayMix(state.delayMix);
+    state.synth.setDelayBPM(parseInt($('chartTempo')?.value) || 120);
+
+    // Apply ADSR
+    state.synth.setADSR(state.adsrAttack, state.adsrDecay, state.adsrSustain, state.adsrRelease);
+
+    // Init arpeggiator
+    state.arp = new Arpeggiator();
+    state.arp.setBPM(parseInt($('chartTempo')?.value) || 120);
+    state.arp.setMode(state.arpMode);
+    state.arp.onNote((notes) => {
+      if (state.synth && state.synthEnabled) {
+        state.synth.update(notes, state.currentPitch?.midi ?? 60);
+      }
+    });
 
     // Init pitch detector (uses current sensitivity state)
     state.detector = new PitchDetector(analyser, state.audioCtx.sampleRate, {
@@ -239,16 +282,13 @@ async function stop() {
     state.sessionStart = null;
   }
 
+  if (state.arp) {
+    state.arp.destroy();
+    state.arp = null;
+  }
   if (state.detector) {
     state.detector.stop();
     state.detector = null;
-  }
-  if (state.drums) {
-    state.drums.stop();
-    state.drums.destroy();
-    state.drums = null;
-    // Reset drum slot UI
-    document.querySelectorAll('.drum-slot').forEach(s => s.classList.remove('active'));
   }
   if (state.synth) {
     state.synth.muteAll();
@@ -281,15 +321,22 @@ function onPitchDetected(pitchInfo) {
   state.currentPitch = pitchInfo;
 
   if (!pitchInfo) {
-    // Silence — mute all
-    if (state.synth) state.synth.muteAll();
+    // Silence — close input gate, mute voices
+    if (state.synth) {
+      state.synth.setGateOpen(false);
+      state.synth.muteAll();
+    }
     ui.noteDisplay.textContent = '–';
     ui.noteDisplay.classList.remove('detected');
     ui.freqDisplay.textContent = '– Hz';
     ui.centsDisplay.textContent = '';
     resetVoiceCards();
+    clearNotation();
     return;
   }
+
+  // Valid pitch detected — open input gate
+  if (state.synth) state.synth.setGateOpen(true);
 
   // Update pitch display
   ui.noteDisplay.textContent = pitchInfo.noteName + pitchInfo.octave;
@@ -365,22 +412,50 @@ function onPitchDetected(pitchInfo) {
 
   // Smooth voice leading across frames
   const smoothed = smoothVoiceTransition(harmonyNotes, state.prevHarmonyNotes);
-  state.prevHarmonyNotes = smoothed;
 
-  // Send to synth (only if harmony is enabled)
+  // Validate voicing — jazz rule enforcement (avoid notes, minor 9ths, spacing)
+  let validated = smoothed;
+  let violations = [];
+  const chordRoot = state.currentChord?.root || harmonyKey;
+  const chordQuality = state.currentChord?.quality || 'maj';
+  const result = validateVoicing(smoothed, chordRoot, chordQuality, harmonyMode);
+  validated = result.voices;
+  violations = result.violations;
+
+  // Check parallel motion between frames
+  const parallelViolations = checkParallelMotion(state.prevHarmonyNotes, validated);
+  violations = violations.concat(parallelViolations);
+
+  state.prevHarmonyNotes = validated;
+
+  // Send to synth (or arpeggiator if active)
   if (state.synth && state.synthEnabled) {
-    state.synth.update(smoothed);
+    if (state.arp && state.arpMode !== 'off') {
+      state.arp.setNotes(validated);
+    } else {
+      state.synth.update(validated, pitchInfo.midi);
+    }
   } else if (state.synth && !state.synthEnabled) {
     state.synth.muteAll();
   }
 
   // Log harmony event (buffered, not per-frame — pushEvent handles throttling)
   if (state.sessionId) {
-    pushEvent(pitchInfo.midi, smoothed, smoothed);
+    pushEvent(pitchInfo.midi, validated, validated);
   }
 
   // Update voice cards
-  updateVoiceCards(smoothed);
+  updateVoiceCards(validated);
+
+  // Update notation display
+  const chordLabel = state.currentChord?.symbol || `${harmonyKey} ${harmonyMode}`;
+  updateNotation(pitchInfo.midi, validated, chordLabel, voicingType, violations);
+
+  // Update notation header
+  const notationChord = $('notationChord');
+  if (notationChord) notationChord.textContent = chordLabel;
+  const notationVoicing = $('notationVoicing');
+  if (notationVoicing) notationVoicing.textContent = voicingType + (violations.length ? ` (${violations.length} fix)` : '');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -531,12 +606,16 @@ function wireControls() {
   ui.keySelect.addEventListener('change', e => {
     state.key = e.target.value;
     state.prevHarmonyNotes = [];
+    // Pads rebuild is handled by initChordPads listener
   });
 
   // Mode
   ui.modeSelect.addEventListener('change', e => {
     state.mode = e.target.value;
     state.prevHarmonyNotes = [];
+    // Update pad key display
+    const keyDisplay = $('padsKeyDisplay');
+    if (keyDisplay) keyDisplay.textContent = `${state.key} ${state.mode}`;
   });
 
   // Voice count buttons
@@ -654,6 +733,16 @@ function wireControls() {
     });
   }
 
+  // HPF (high-pass filter for rumble)
+  const hpfSlider = $('hpfSlider');
+  if (hpfSlider) {
+    hpfSlider.addEventListener('input', e => {
+      const freq = parseInt(e.target.value);
+      $('hpfVal').textContent = `${freq} Hz`;
+      if (state.synth) state.synth.setHPF(freq);
+    });
+  }
+
   // Sensitivity: noise gate
   const gateSlider = $('gateSlider');
   if (gateSlider) {
@@ -694,10 +783,21 @@ function wireControls() {
         e.currentTarget.classList.add('active');
         if (state.synth) state.synth.setVoiceType(state.voiceType);
 
-        // Show/hide formant-only controls
-        const isFormant = state.voiceType === 'formant';
-        if ($('vowelRow')) $('vowelRow').style.display = isFormant ? '' : 'none';
-        if ($('breathRow')) $('breathRow').style.display = isFormant ? '' : 'none';
+        // Show/hide mode-specific controls
+        const isVocal = state.voiceType === 'formant';
+        // Vowel/formant slider: visible for Vocal mode (drives formant filters)
+        if ($('vowelRow')) $('vowelRow').style.display = isVocal ? '' : 'none';
+        // Breath slider: only for Vocal mode (no breath on Synth or FM)
+        if ($('breathRow')) $('breathRow').style.display = isVocal ? '' : 'none';
+        // ADSR controls: relevant for Synth/FM (Vocal mode uses mic as envelope)
+        const adsrSection = document.querySelector('.effect-block:nth-child(3)');
+        // In Vocal mode: dim Attack/Decay/Sustain (mic is the envelope),
+        // but Release stays active (controls harmony tail length)
+        if ($('adsrAttack')) $('adsrAttack').parentElement.style.opacity = isVocal ? '0.35' : '1.0';
+        if ($('adsrDecay')) $('adsrDecay').parentElement.style.opacity = isVocal ? '0.35' : '1.0';
+        if ($('adsrSustain')) $('adsrSustain').parentElement.style.opacity = isVocal ? '0.35' : '1.0';
+        // Release always visible — controls vocal release tail OR synth release
+        if ($('adsrRelease')) $('adsrRelease').parentElement.style.opacity = '1.0';
       });
     });
   }
@@ -707,8 +807,8 @@ function wireControls() {
   if (vowelSlider) {
     vowelSlider.addEventListener('input', e => {
       state.vowel = parseInt(e.target.value) / 100;
-      const vowelNames = ['ah', 'ee', 'oh', 'oo'];
-      const idx = Math.min(3, Math.floor(state.vowel * 3.99));
+      const vowelNames = ['ah', 'eh', 'ee', 'oh', 'oo'];
+      const idx = Math.min(4, Math.floor(state.vowel * 4.99));
       $('vowelVal').textContent = vowelNames[idx];
       if (state.synth) state.synth.setVowel(state.vowel);
     });
@@ -724,34 +824,125 @@ function wireControls() {
     });
   }
 
-  // ── Drum Loop Slots ──
-  document.querySelectorAll('[data-drum-slot]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const idx = parseInt(e.currentTarget.dataset.drumSlot);
-      if (state.drums) {
-        state.drums.trigger(idx);
-        // Update UI
-        document.querySelectorAll('.drum-slot').forEach(s => s.classList.remove('active'));
-        if (state.drums.playing) {
-          e.currentTarget.classList.add('active');
-          e.currentTarget.querySelector('.drum-slot-icon').textContent = '■';
-        }
-        // Reset icons on all
-        document.querySelectorAll('.drum-slot').forEach(s => {
-          if (!s.classList.contains('active')) {
-            s.querySelector('.drum-slot-icon').textContent = '▶';
-          }
-        });
+  // ── Hold Button (sustain pedal) ──
+  const holdBtn = $('holdBtn');
+  if (holdBtn) {
+    // Toggle on click
+    holdBtn.addEventListener('click', () => {
+      const isActive = holdBtn.classList.toggle('active');
+      if (state.synth) state.synth.setHold(isActive);
+    });
+    // Also support momentary press (mousedown/mouseup)
+    holdBtn.addEventListener('mousedown', (e) => {
+      if (e.shiftKey) {
+        // Shift+click = momentary hold
+        holdBtn.classList.add('active');
+        if (state.synth) state.synth.setHold(true);
       }
     });
-  });
+    holdBtn.addEventListener('mouseup', (e) => {
+      if (e.shiftKey) {
+        holdBtn.classList.remove('active');
+        if (state.synth) state.synth.setHold(false);
+      }
+    });
+  }
 
-  // Drum volume
-  const drumsVolSlider = $('drumsVolSlider');
-  if (drumsVolSlider) {
-    drumsVolSlider.addEventListener('input', e => {
-      state.drumsVol = parseInt(e.target.value) / 100;
-      if (state.drums) state.drums.setVolume(state.drumsVol);
+  // ── Effects: Reverb ──
+  const reverbSize = $('reverbSize');
+  if (reverbSize) {
+    reverbSize.addEventListener('input', e => {
+      state.reverbSize = parseInt(e.target.value) / 100;
+      $('reverbSizeVal').textContent = state.reverbSize.toFixed(2);
+      if (state.synth) state.synth.setReverbSize(state.reverbSize);
+    });
+  }
+  const reverbDamping = $('reverbDamping');
+  if (reverbDamping) {
+    reverbDamping.addEventListener('input', e => {
+      state.reverbDamping = parseInt(e.target.value) / 100;
+      $('reverbDampingVal').textContent = state.reverbDamping.toFixed(2);
+      if (state.synth) state.synth.setReverbDamping(state.reverbDamping);
+    });
+  }
+  const reverbMix = $('reverbMix');
+  if (reverbMix) {
+    reverbMix.addEventListener('input', e => {
+      state.reverbMix = parseInt(e.target.value) / 100;
+      $('reverbMixVal').textContent = state.reverbMix.toFixed(2);
+      if (state.synth) state.synth.setReverbMix(state.reverbMix);
+    });
+  }
+
+  // ── Effects: Delay ──
+  const delaySync = $('delaySync');
+  if (delaySync) {
+    delaySync.addEventListener('change', e => {
+      state.delaySyncType = e.target.value;
+      if (state.synth) state.synth.setDelaySync(state.delaySyncType);
+    });
+  }
+  const delayFeedback = $('delayFeedback');
+  if (delayFeedback) {
+    delayFeedback.addEventListener('input', e => {
+      state.delayFeedback = parseInt(e.target.value) / 100;
+      $('delayFeedbackVal').textContent = state.delayFeedback.toFixed(2);
+      if (state.synth) state.synth.setDelayFeedback(state.delayFeedback);
+    });
+  }
+  const delayMix = $('delayMix');
+  if (delayMix) {
+    delayMix.addEventListener('input', e => {
+      state.delayMix = parseInt(e.target.value) / 100;
+      $('delayMixVal').textContent = state.delayMix.toFixed(2);
+      if (state.synth) state.synth.setDelayMix(state.delayMix);
+    });
+  }
+
+  // ── ADSR Envelope ──
+  const adsrAttack = $('adsrAttack');
+  if (adsrAttack) {
+    adsrAttack.addEventListener('input', e => {
+      state.adsrAttack = parseInt(e.target.value) / 1000;
+      $('adsrAttackVal').textContent = `${e.target.value}ms`;
+      if (state.synth) state.synth.setAttack(state.adsrAttack);
+    });
+  }
+  const adsrDecay = $('adsrDecay');
+  if (adsrDecay) {
+    adsrDecay.addEventListener('input', e => {
+      state.adsrDecay = parseInt(e.target.value) / 1000;
+      $('adsrDecayVal').textContent = `${e.target.value}ms`;
+      if (state.synth) state.synth.setDecay(state.adsrDecay);
+    });
+  }
+  const adsrSustain = $('adsrSustain');
+  if (adsrSustain) {
+    adsrSustain.addEventListener('input', e => {
+      state.adsrSustain = parseInt(e.target.value) / 100;
+      $('adsrSustainVal').textContent = state.adsrSustain.toFixed(2);
+      if (state.synth) state.synth.setSustain(state.adsrSustain);
+    });
+  }
+  const adsrRelease = $('adsrRelease');
+  if (adsrRelease) {
+    adsrRelease.addEventListener('input', e => {
+      state.adsrRelease = parseInt(e.target.value) / 1000;
+      $('adsrReleaseVal').textContent = `${e.target.value}ms`;
+      if (state.synth) state.synth.setRelease(state.adsrRelease);
+    });
+  }
+
+  // ── Arpeggiator ──
+  const arpMode = $('arpMode');
+  if (arpMode) {
+    arpMode.addEventListener('change', e => {
+      state.arpMode = e.target.value;
+      if (state.arp) state.arp.setMode(state.arpMode);
+      // When turning arp off, let the normal harmony loop take over
+      if (state.arpMode === 'off' && state.synth) {
+        state.synth.muteAll();
+      }
     });
   }
 }
@@ -963,15 +1154,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // BPM sync: chart tempo → drum engine
+  // BPM sync: chart tempo → drum engine + delay + arpeggiator
   const chartTempo = $('chartTempo');
   if (chartTempo) {
     chartTempo.addEventListener('input', e => {
       const bpm = parseInt(e.target.value);
       $('chartTempoVal').textContent = bpm;
-      if (state.drums) state.drums.setBPM(bpm);
+      if (state.synth) state.synth.setDelayBPM(bpm);
+      if (state.arp) state.arp.setBPM(bpm);
     });
   }
+
+  // ── Notation Display ──
+  const notationEl = $('notationDisplay');
+  if (notationEl) initNotation(notationEl);
+
+  // ── Chord Pads ──
+  initChordPads();
 
   // Init MIDI controller
   initMIDI();
@@ -1054,36 +1253,135 @@ async function initMIDI() {
     if (state.detector) state.detector.smoothingFactor = state.smoothingFactor;
   });
 
-  state.midi.registerParam('drumVolume', (n) => {
-    state.drumsVol = n;
-    if ($('drumsVolSlider')) $('drumsVolSlider').value = Math.round(n * 100);
-    if (state.drums) state.drums.setVolume(n);
+  // MIDI CC 64 — Sustain pedal → Hold
+  state.midi.registerParam('hold', (n) => {
+    const isHeld = n > 0.5;
+    if (state.synth) state.synth.setHold(isHeld);
+    const holdBtn = $('holdBtn');
+    if (holdBtn) holdBtn.classList.toggle('active', isHeld);
   });
-
-  // Drum slot triggers (CC 20–23)
-  for (let i = 0; i < 4; i++) {
-    state.midi.registerParam(`drumSlot${i}`, (n) => {
-      if (n > 0.5 && state.drums) {
-        state.drums.trigger(i);
-        document.querySelectorAll('.drum-slot').forEach(s => s.classList.remove('active'));
-        if (state.drums.playing) {
-          const slot = document.querySelector(`[data-drum-slot="${i}"]`);
-          if (slot) {
-            slot.classList.add('active');
-            slot.querySelector('.drum-slot-icon').textContent = '■';
-          }
-        }
-        document.querySelectorAll('.drum-slot').forEach(s => {
-          if (!s.classList.contains('active')) {
-            s.querySelector('.drum-slot-icon').textContent = '▶';
-          }
-        });
-      }
-    });
-  }
 
   // MIDI note input — could drive manual harmony in future
   state.midi.onNoteOn = (note, velocity, channel) => {
     console.log(`[MIDI] Note ON: ${note} vel:${velocity} ch:${channel}`);
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHORD PADS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function initChordPads() {
+  // Build initial grid from current key
+  rebuildChordPads();
+
+  // Rebuild when key changes
+  ui.keySelect.addEventListener('change', () => {
+    rebuildChordPads();
+  });
+
+  // Tritone sub toggle
+  const ttToggle = $('ttToggle');
+  if (ttToggle) {
+    ttToggle.addEventListener('click', () => {
+      state.ttActive = !state.ttActive;
+      ttToggle.classList.toggle('active', state.ttActive);
+      renderPadRow(2);
+      // Update active chord if it was in row 2
+      if (state.activePadId?.startsWith('2-')) {
+        const col = parseInt(state.activePadId.split('-')[1]);
+        const chords = state.ttActive ? state.chordGrid.tritones : state.chordGrid.dominants;
+        if (chords[col]) {
+          state.currentChord = chords[col];
+          state.chartActive = true;
+        }
+      }
+    });
+  }
+
+  // Dominant toggle
+  const domToggle = $('domToggle');
+  if (domToggle) {
+    domToggle.addEventListener('click', () => {
+      state.domActive = !state.domActive;
+      domToggle.classList.toggle('active', state.domActive);
+      renderPadRow(3);
+      // Update active chord if it was in row 3
+      if (state.activePadId?.startsWith('3-')) {
+        const col = parseInt(state.activePadId.split('-')[1]);
+        const chords = state.domActive ? state.chordGrid.approachesDom : state.chordGrid.approaches;
+        if (chords[col]) {
+          state.currentChord = chords[col];
+          state.chartActive = true;
+        }
+      }
+    });
+  }
+}
+
+function rebuildChordPads() {
+  state.chordGrid = buildChordGrid(state.key);
+  if (!state.chordGrid) return;
+
+  // Update key display
+  const keyDisplay = $('padsKeyDisplay');
+  if (keyDisplay) keyDisplay.textContent = `${state.key} ${state.mode}`;
+
+  // Clear active pad
+  state.activePadId = null;
+  state.currentChord = null;
+  state.chartActive = false;
+
+  // Render all 3 rows
+  renderPadRow(1);
+  renderPadRow(2);
+  renderPadRow(3);
+}
+
+function renderPadRow(rowNum) {
+  const rowEl = $(`padRow${rowNum}`);
+  if (!rowEl || !state.chordGrid) return;
+
+  let chords, labelFn;
+  if (rowNum === 1) {
+    chords = state.chordGrid.diatonic;
+    labelFn = (i) => getRomanNumeral(i);
+  } else if (rowNum === 2) {
+    chords = state.ttActive ? state.chordGrid.tritones : state.chordGrid.dominants;
+    labelFn = (i) => state.ttActive ? 'TT/' + getRomanNumeral(i) : getDominantLabel(i);
+  } else {
+    chords = state.domActive ? state.chordGrid.approachesDom : state.chordGrid.approaches;
+    labelFn = (i) => state.domActive ? 'dom/' + getRomanNumeral(i) : getApproachLabel(i);
+  }
+
+  rowEl.innerHTML = '';
+  chords.forEach((chord, col) => {
+    const pad = document.createElement('button');
+    pad.className = 'chord-pad';
+    const padId = `${rowNum}-${col}`;
+    pad.dataset.padId = padId;
+
+    if (state.activePadId === padId) pad.classList.add('active');
+
+    pad.innerHTML = `
+      <span class="pad-symbol">${chord.symbol}</span>
+      <span class="pad-label">${labelFn(col)}</span>
+    `;
+
+    pad.addEventListener('click', () => {
+      // Deactivate previous
+      document.querySelectorAll('.chord-pad.active').forEach(p => p.classList.remove('active'));
+
+      // Activate this pad
+      pad.classList.add('active');
+      state.activePadId = padId;
+      state.currentChord = chord;
+      state.chartActive = true;
+
+      // Reset voice leading for clean transition
+      state.prevHarmonyNotes = [];
+    });
+
+    rowEl.appendChild(pad);
+  });
 }

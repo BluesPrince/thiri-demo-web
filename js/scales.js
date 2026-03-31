@@ -342,6 +342,86 @@ export const CHORD_TENSIONS = {
   'sus2':   { 11: 17, 13: 21 },
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// AVOID NOTES — diatonic tones that clash with chord tones (minor 9th above)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Avoid note intervals (semitones from root) by chord quality and mode.
+ * An avoid note is a diatonic scale tone a half step above a chord tone.
+ * Voicing these as sustained harmony notes creates harsh minor 9th clashes.
+ */
+export const AVOID_NOTES = {
+  'maj7':  { 'major': [5], 'lydian': [] },                    // 4 (F over Cmaj7) — half step above 3rd
+  'maj':   { 'major': [5], 'lydian': [] },
+  '7':     { 'mixolydian': [5] },                              // 4 over dom7 — half step above 3rd
+  '9':     { 'mixolydian': [5] },
+  '11':    { 'mixolydian': [5] },
+  '13':    { 'mixolydian': [5] },
+  'm7':    { 'dorian': [], 'aeolian': [8], 'phrygian': [1, 8] }, // b6 over Aeolian; b2+b6 over Phrygian
+  'm':     { 'dorian': [], 'aeolian': [8], 'phrygian': [1, 8] },
+  'mMaj7': { 'melodic-minor': [] },
+  'm7b5':  { 'locrian': [1] },                                // b2 over Locrian — half step above root
+  'dim7':  { 'diminished': [] },
+  'sus4':  { 'mixolydian': [] },
+  'sus2':  { 'major': [] },
+  'aug':   { 'whole-tone': [] },
+};
+
+/**
+ * Check if a pitch class is an avoid note for the given chord/mode.
+ * @param {number} pitchClass - 0-11 pitch class
+ * @param {number} rootPc - Root pitch class (0-11)
+ * @param {string} quality - Chord quality key
+ * @param {string} mode - Scale mode (e.g., 'major', 'dorian')
+ * @returns {boolean}
+ */
+export function isAvoidNote(pitchClass, rootPc, quality, mode) {
+  const qualityEntry = AVOID_NOTES[quality];
+  if (!qualityEntry) return false;
+  const avoidIntervals = qualityEntry[mode] || qualityEntry[Object.keys(qualityEntry)[0]] || [];
+  const interval = ((pitchClass - rootPc) % 12 + 12) % 12;
+  return avoidIntervals.includes(interval);
+}
+
+/**
+ * Find the nearest non-avoid chord tone or tension to replace an avoid note.
+ * Searches ±2 semitones for the closest chord tone that isn't an avoid note.
+ * @param {number} midi - The avoid note MIDI number
+ * @param {string} rootName - Chord root
+ * @param {string} quality - Chord quality
+ * @returns {number} Replacement MIDI note
+ */
+export function replaceAvoidNote(midi, rootName, quality) {
+  const rootPc = NOTE_MAP[rootName];
+  if (rootPc === undefined) return midi;
+  const intervals = CHORD_INTERVALS[quality] || CHORD_INTERVALS['maj'];
+  const chordPcs = new Set(intervals.map(i => (rootPc + i) % 12));
+
+  // Also include safe tensions
+  const tensions = CHORD_TENSIONS[quality] || {};
+  for (const t of Object.values(tensions)) {
+    chordPcs.add((rootPc + t) % 12);
+  }
+
+  // Search ±1 then ±2 semitones for nearest chord tone / tension
+  for (let offset of [-1, 1, -2, 2]) {
+    const candidate = midi + offset;
+    const pc = ((candidate % 12) + 12) % 12;
+    if (chordPcs.has(pc)) return candidate;
+  }
+  return midi; // fallback: no replacement found
+}
+
+/**
+ * Check for minor 9th (or minor 2nd) between two MIDI notes.
+ * @returns {boolean} True if the interval is a minor 2nd (1 semitone) in any octave
+ */
+export function hasMinor9th(midiA, midiB) {
+  const interval = Math.abs(midiA - midiB) % 12;
+  return interval === 1;
+}
+
 /**
  * Check if a MIDI note is a chord tone of the given chord.
  * @param {number} midi - MIDI note number

@@ -41,15 +41,11 @@ export class MIDIController {
       2:  'breath',       // Breath Controller
       7:  'master',       // Channel Volume
       11: 'mix',          // Expression
+      64: 'hold',         // Sustain Pedal → Hold
       74: 'humanize',     // Cutoff (commonly mapped)
       71: 'gate',         // Resonance
       73: 'confidence',   // Attack
       72: 'smoothing',    // Release
-      16: 'drumVolume',   // General Purpose 1
-      20: 'drumSlot0',    // General Purpose 5
-      21: 'drumSlot1',
-      22: 'drumSlot2',
-      23: 'drumSlot3',
     };
 
     // Parameter handlers — set from main.js
