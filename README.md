@@ -1,69 +1,69 @@
-# THIRI — Live Vocal Harmonizer POC
+# THIRI Demo Web
 
-**WoodShed chord intelligence engine + real-time vocal harmonization.**
+> Browser-based real-time vocal harmonizer demo powered by Web Audio API
 
-## Quick Start
+## What It Does
+
+Interactive web demo of the THIRI vocal harmonizer. Sing into your mic and hear real-time diatonic harmonies generated on the fly. Features YIN pitch detection, formant-preserving vocoder, jazz voice leading, chord pads, an arpeggiator, drum machine, and live notation display. This is the public-facing proof of concept at thiri.ai.
+
+## Tech Stack
+
+- **Audio:** Web Audio API (AudioWorklet for pitch shifting)
+- **Pitch Detection:** YIN algorithm
+- **Synthesis:** Custom vocoder, multi-oscillator synth
+- **Frontend:** Vanilla HTML/CSS/JS — no framework, no bundler
+- **Hosting:** Vercel (static)
+
+## Setup
 
 ```bash
-cd thiri-poc
+# No build step — static files
 npx serve .
+# Or deploy to Vercel:
+vercel
 ```
 
 Open `http://localhost:3000` in Chrome. Allow mic access. Sing.
 
-## How It Works
+## Architecture
 
 ```
-Mic → YIN pitch detection → WoodShed harmony engine → Web Audio oscillators → Speakers
+js/
+  pitch.js              YIN pitch detection
+  harmony.js            Diatonic harmony generation + voice leading
+  synth.js              Multi-oscillator synthesizer
+  vocoder-voice.js      Formant-preserving vocoder
+  chord-pads.js         Interactive chord pad grid (diatonic + V7 + ii-V)
+  arp.js                Arpeggiator
+  drums.js              Drum machine
+  notation.js           Live notation display
+  scales.js             Scale/mode definitions
+  pitch-shifter-worklet.js  AudioWorklet pitch shifter
+  midi.js               MIDI input support
+  api.js / auth.js      License verification
+css/style.css           Styling
+demo/                   Standalone demo page
 ```
 
-1. **Pitch detection** (`pitch.js`) — YIN autocorrelation identifies your sung note in real time
-2. **Harmony engine** (`harmony.js`) — calculates diatonic harmony notes based on key, mode, and voicing type
-3. **Synthesis** (`synth.js`) — plays those harmony notes as oscillator tones through your speakers
+## Features (v1.2)
 
-Your dry voice passes through a separate signal path so it doesn't feed back into pitch detection.
-
-## Controls
-
-| Control | Description |
-|---|---|
-| KEY | Root note of the scale (C, Db, D … B) |
-| MODE | Scale mode — Major, Dorian, Mixolydian, etc. |
-| VOICES | Number of harmony voices (1–4) |
-| VOICING | Close (3rds), Open (spread), Drop-2, Parallel |
-| DIRECTION | Above / Below / Around the lead note |
-| MIX | Dry (voice only) ↔ Wet (harmony only) |
-| Per-voice | Waveform, detune (chorus thickness), volume |
-| FM Mode | Switches oscillators to FM synthesis for organ/brass timbre |
-
-## File Structure
-
-```
-thiri-poc/
-├── index.html          — App layout
-├── css/style.css       — Studio dark UI
-└── js/
-    ├── scales.js       — Music theory (ported from WoodShed harmonySpelling.ts)
-    ├── pitch.js        — YIN pitch detection
-    ├── harmony.js      — Diatonic harmony resolver (WoodShed seed)
-    ├── synth.js        — Web Audio oscillator synthesis
-    └── main.js         — App wiring + UI
-```
+- Real-time pitch detection and harmony generation
+- Formant-preserving vocoder voice processing
+- Chord pad grid with diatonic, V7, and ii-V voicings
+- Tritone substitution and dominant function toggles
+- Jazz voice leading rules (minor-9th avoidance, smooth motion)
+- Arpeggiator and drum machine
+- Live notation display
+- MIDI controller input
 
 ## WoodShed Alignment
 
-`scales.js` and `harmony.js` are the vanilla JS seed of the WoodShed chord intelligence layer:
-- Same `SCALE_FORMULAS`, `NOTE_MAP`, `PITCH_MAP` as `harmonySpelling.ts`
-- Same Drop-2 logic as `voicingEngine.ts`
-- Same `midiToFreq`/`freqToMidi` as `harmonyEngine.ts`
-- `smoothVoiceTransition()` mirrors `voiceLeadingOptimizer.ts` greedy matching
+`scales.js` and `harmony.js` are the vanilla JS seed of the WoodShed chord intelligence layer — same scale formulas, Drop-2 logic, and voice leading optimizer as the TypeScript engine.
 
-## Upgrade Path
+## Status
 
-| Phase | Renderer | Sound |
-|---|---|---|
-| POC (now) | Oscillators | Sine/triangle waves |
-| Phase 2 | PSOLA/phase vocoder | Your actual voice pitch-shifted |
-| Phase 3 | Qwen3-TTS / XTTS-v2 | Cloned vocal ensemble |
+Live at thiri.ai — version 1.2.
 
-Copyright 2026 Blues Prince Media. PATENT PENDING.
+## License
+
+Private — Blues Prince Media. PATENT PENDING.
